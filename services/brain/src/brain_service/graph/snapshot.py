@@ -7,8 +7,15 @@ import sqlite3
 
 def get_graph_snapshot(conn: sqlite3.Connection) -> tuple[list[dict], list[dict]]:
     nodes = [
-        {"id": row["id"], "node_type": row["node_type"], "label": row["label"]}
-        for row in conn.execute("SELECT id, node_type, label FROM graph_nodes")
+        {
+            "id": row["id"],
+            "node_type": row["node_type"],
+            "label": row["label"],
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+            "metadata": row["metadata"],
+        }
+        for row in conn.execute("SELECT id, node_type, label, created_at, updated_at, metadata FROM graph_nodes")
     ]
     edges = [
         {

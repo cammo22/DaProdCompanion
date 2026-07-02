@@ -11,6 +11,7 @@ al filesystem in questo progetto.
 
 from __future__ import annotations
 
+import json
 import re
 import sqlite3
 from datetime import datetime
@@ -19,13 +20,7 @@ from pathlib import Path
 from companion_shared.sandbox import FilesystemGuard
 
 from ..graph.snapshot import get_graph_snapshot
-
-_EDGE_TYPE_LABELS = {
-    "conosce": "conosce",
-    "riguarda": "riguarda",
-    "e_avvenuto_in": "e' avvenuto in",
-    "e_collegato_a": "e' collegato a",
-}
+from ..graph.types import EDGE_TYPE_LABELS
 
 
 def _slugify(label: str) -> str:
@@ -33,20 +28,56 @@ def _slugify(label: str) -> str:
     return slug or "senza-nome"
 
 
+def _yaml_scalar(value: str) -> str:
+    """Quoting minimo per uno scalare YAML: niente libreria dedicata solo per
+    questo, i valori qui sono sempre stringhe brevi (etichette, tag), non
+    testo libero che richiederebbe un escaping piu' sofisticato."""
+    escaped = value.replace('"', '\\"')
+    return f'"{escaped}"'
+
+
+def _yaml_frontmatter(fields: dict) -> str:
+    lines = ["---"]
+    for key, value in fields.items():
+        if value is None:
+            lines.append(f"{key}: null")
+        elif isinstance(value, list):
+            items = ", ".join(_yaml_scalar(str(v)) for v in value)
+            lines.append(f"{key}: [{items}]")
+        elif isinstance(value, (int, float)):
+            lines.append(f"{key}: {value}")
+        else:
+            lines.append(f"{key}: {_yaml_scalar(str(value))}")
+    lines.append("---")
+    return "\n".join(lines)
+
+
 def _entity_markdown(node: dict, outgoing: list[dict], incoming: list[dict], node_by_id: dict[int, dict]) -> str:
-    lines = [f"# {node['label']}", "", f"**Tipo**: {node['node_type']}", "", "## Connessioni"]
+    metadata = json.loads(node["metadata"]) if node.get("metadata") else {}
+    frontmatter = _yaml_frontmatter(
+        {
+            "title": node["label"],
+            "created": node.get("created_at"),
+            "updated": node.get("updated_at"),
+            "type": node["node_type"],
+            "tags": metadata.get("tags", []),
+            "sources": metadata.get("sources", []),
+            "confidence": metadata.get("confidence"),
+        }
+    )
+    lines = [frontmatter, "", f"# {node['label']}", "", "## Connessioni"]
     if not outgoing and not incoming:
         lines.append("")
         lines.append("Nessuna connessione ancora.")
     for edge in outgoing:
         target = node_by_id.get(edge["target_node_id"])
         target_label = target["label"] if target else f"#{edge['target_node_id']}"
-        edge_label = _EDGE_TYPE_LABELS.get(edge["edge_type"], edge["edge_type"])
+        edge_label = EDGE_TYPE_LABELS.get(edge["edge_type"], edge["edge_type"])
         lines.append(f"- {edge_label} → [[{target_label}]]")
     for edge in incoming:
         source = node_by_id.get(edge["source_node_id"])
         source_label = source["label"] if source else f"#{edge['source_node_id']}"
-        edge_label = _EDGE_TYPE_LABELS.get(edge["edge_type"], edge["edge_type"])
+        edge_label = EDGE_TYPE_LABELS.get(edge["edge_type"], edge["edge_type"])
         lines.append(f"- [[{source_label}]] → {edge_label}")
     return "\n".join(lines) + "\n"
 
@@ -67,9 +98,31 @@ def write_entity_files(conn: sqlite3.Connection, *, guard: FilesystemGuard, sand
             f.write(content)
 
 
-def write_dream_summary(summary: str, *, guard: FilesystemGuard, sandbox_root: Path) -> None:
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+def write_dream_summary(summary: str, *, timestamp: str, guard: FilesystemGuard, sandbox_root: Path) -> None:
     file_path = sandbox_root / "memoria" / "sogni" / f"{timestamp}.md"
     content = f"# Sogno del {timestamp}\n\n{summary}\n"
     with guard.open_sandboxed(file_path, "w", purpose="scrittura riassunto sogno", encoding="utf-8") as f:
         f.write(content)
+
+
+_IDENTITY_FILE = Path("chi-sono.md")
+
+
+def append_identity_reflection(reflection: str, *, bot_name: str, guard: FilesystemGuard, sandbox_root: Path) -> None:
+    """Pagina 'chi sono' auto-scritta dal companion stesso: non viene
+    rigenerata da zero come i file entita' (qui non c'e' uno stato
+    strutturato da cui ricostruirla), ma accumulata nel tempo una riflessione
+    alla volta, cosi' diventa via via un diario della propria identita' cosi'
+    come emerge dalle conversazioni reali, non un testo statico scritto una
+    tantum."""
+    file_path = sandbox_root / _IDENTITY_FILE
+    try:
+        with guard.open_sandboxed(file_path, "r", purpose="lettura pagina identita'", encoding="utf-8") as f:
+            existing = f.read()
+    except FileNotFoundError:
+        existing = f"# Chi sono io, {bot_name}\n"
+
+    today = datetime.now().strftime("%Y-%m-%d")
+    entry = f"\n## {today}\n\n{reflection}\n"
+    with guard.open_sandboxed(file_path, "w", purpose="scrittura pagina identita'", encoding="utf-8") as f:
+        f.write(existing + entry)

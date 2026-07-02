@@ -12,12 +12,14 @@ import json
 import logging
 import sqlite3
 from collections.abc import Callable
+from datetime import datetime
 from pathlib import Path
 
 import httpx
 from companion_shared.sandbox import FilesystemGuard
 
 from ..conversation.tts_client import TtsClient
+from ..graph.types import EDGE_TYPES, ENTITY_TYPES
 from ..graph.writer import find_or_create_edge, find_or_create_node
 from ..memory import episodic, semantic
 from ..memory.embeddings import generate_embedding
@@ -25,8 +27,6 @@ from . import markdown_export
 
 logger = logging.getLogger("brain")
 
-_ENTITY_TYPES = ["Persona", "Evento", "Concetto", "Luogo"]
-_EDGE_TYPES = ["conosce", "riguarda", "e_avvenuto_in", "e_collegato_a"]
 _MIN_EVENTS_TO_DREAM = 3
 
 _RESPONSE_SCHEMA = {
@@ -39,10 +39,12 @@ _RESPONSE_SCHEMA = {
                 "type": "object",
                 "properties": {
                     "temp_id": {"type": "string"},
-                    "type": {"type": "string", "enum": _ENTITY_TYPES},
+                    "type": {"type": "string", "enum": ENTITY_TYPES},
                     "label": {"type": "string"},
+                    "tags": {"type": "array", "items": {"type": "string"}},
+                    "confidence": {"type": "number"},
                 },
-                "required": ["temp_id", "type", "label"],
+                "required": ["temp_id", "type", "label", "tags", "confidence"],
             },
         },
         "relations": {
@@ -52,13 +54,14 @@ _RESPONSE_SCHEMA = {
                 "properties": {
                     "source_temp_id": {"type": "string"},
                     "target_temp_id": {"type": "string"},
-                    "type": {"type": "string", "enum": _EDGE_TYPES},
+                    "type": {"type": "string", "enum": EDGE_TYPES},
                 },
                 "required": ["source_temp_id", "target_temp_id", "type"],
             },
         },
+        "self_reflection": {"type": "string"},
     },
-    "required": ["summary", "entities", "relations"],
+    "required": ["summary", "entities", "relations", "self_reflection"],
 }
 
 
@@ -74,7 +77,7 @@ def _build_transcript(events: list[sqlite3.Row]) -> str:
     return "\n".join(lines)
 
 
-def _build_prompt(transcript: str) -> str:
+def _build_prompt(transcript: str, bot_name: str) -> str:
     return (
         "Sei il modulo di consolidamento della memoria di un companion AI. Leggi la "
         "trascrizione qui sotto e produci un JSON con:\n"
@@ -87,8 +90,16 @@ def _build_prompt(transcript: str) -> str:
         "deve avere alcun significato, serve solo per collegare le relazioni qui sotto. 'label' e' "
         "invece il nome vero e proprio dell'entita' (es. 'Marco', 'Milano', 'sviluppo software'). Se "
         "l'utente ha detto il proprio nome, usa quel nome come label invece di un termine generico "
-        "come 'Utente' o 'utente'.\n"
-        "- 'relations': le relazioni tra le entita' sopra, riferendole tramite i loro temp_id.\n\n"
+        "come 'Utente' o 'utente'. 'tags' sono 1-4 parole chiave brevi che descrivono l'entita' (es. "
+        "['amico', 'napoli'] per una persona, ['hobby'] per un concetto) — lista vuota se non ne vengono "
+        "in mente di utili. 'confidence' e' un numero da 0 a 1 su quanto e' certa e stabile questa "
+        "informazione secondo la trascrizione (1 = detto esplicitamente e chiaro, 0.5 = dedotto/ambiguo).\n"
+        "- 'relations': le relazioni tra le entita' sopra, riferendole tramite i loro temp_id.\n"
+        f"- 'self_reflection': SOLO se in questa trascrizione emerge qualcosa di genuino sul tuo modo di "
+        f"essere come companion (chiamato '{bot_name}') — un tratto del tuo carattere, qualcosa che ti "
+        "piace o ti diverte, un aspetto della tua relazione con l'utente — scrivi 2-3 frasi in prima "
+        "persona su questo. Se non emerge nulla del genere, lascia una stringa vuota: non inventare "
+        "riflessioni su di te se la trascrizione non ne offre lo spunto.\n\n"
         "Se non ci sono entita' o relazioni rilevanti, lascia le liste vuote piuttosto che inventarle.\n\n"
         f"Trascrizione:\n{transcript}"
     )
@@ -103,6 +114,7 @@ async def run_dreaming_cycle(
     num_ctx: int,
     guard: FilesystemGuard,
     sandbox_root: Path,
+    bot_name: str,
     tts: TtsClient | None = None,
     on_event: Callable[[str, dict], None] | None = None,
 ) -> int:
@@ -123,7 +135,7 @@ async def run_dreaming_cycle(
     consolidated_count = 0
     try:
         transcript = _build_transcript(events)
-        prompt = _build_prompt(transcript)
+        prompt = _build_prompt(transcript, bot_name)
 
         async with httpx.AsyncClient(base_url=ollama_host, timeout=180.0) as client:
             response = await client.post(
@@ -161,9 +173,19 @@ async def run_dreaming_cycle(
         event_ids = [event["id"] for event in events]
         semantic.insert_semantic_memory(conn, summary=summary, source_event_ids=event_ids, embedding=embedding)
 
+        dream_timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        dream_source = f"Sogno del {dream_timestamp}"
+
         temp_id_to_node_id: dict[str, int] = {}
         for entity in parsed.get("entities", []):
-            node_id = find_or_create_node(conn, node_type=entity["type"], label=entity["label"])
+            node_id = find_or_create_node(
+                conn,
+                node_type=entity["type"],
+                label=entity["label"],
+                tags=entity.get("tags", []),
+                confidence=entity.get("confidence"),
+                source=dream_source,
+            )
             temp_id_to_node_id[entity["temp_id"]] = node_id
 
         graph_changed = bool(parsed.get("entities"))
@@ -182,9 +204,14 @@ async def run_dreaming_cycle(
         # far fallire il ciclo se scrivere su disco va storto, il
         # consolidamento vero e proprio e' gia' andato a buon fine sopra.
         try:
-            markdown_export.write_dream_summary(summary, guard=guard, sandbox_root=sandbox_root)
+            markdown_export.write_dream_summary(summary, timestamp=dream_timestamp, guard=guard, sandbox_root=sandbox_root)
             if graph_changed:
                 markdown_export.write_entity_files(conn, guard=guard, sandbox_root=sandbox_root)
+            self_reflection = parsed.get("self_reflection", "").strip()
+            if self_reflection:
+                markdown_export.append_identity_reflection(
+                    self_reflection, bot_name=bot_name, guard=guard, sandbox_root=sandbox_root
+                )
         except Exception:
             logger.exception("Dreaming: export in markdown fallito, il consolidamento resta comunque valido")
 
