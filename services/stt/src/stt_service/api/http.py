@@ -22,7 +22,8 @@ from ..audio.devices import list_input_devices
 from ..brain_client import BrainClient
 from ..engine.whisper_engine import WhisperEngine
 from ..pipeline import VoicePipeline
-from ..variants import load_extra_variants
+from ..variants import load_extra_variants, save_extra_variants
+from ..wake_word import contains_wake_word
 from .schemas import (
     DevicesResponse,
     HealthResponse,
@@ -30,6 +31,10 @@ from .schemas import (
     MuteStateResponse,
     RecordingStateResponse,
     SpeakingMuteRequest,
+    WakeWordTestRequest,
+    WakeWordTestResponse,
+    WakeWordVariantRequest,
+    WakeWordVariantsResponse,
 )
 
 
@@ -142,6 +147,10 @@ async def lifespan(app: FastAPI):
     app.state.stop_event = stop_event
     app.state.mute_state = mute_state
     app.state.recording_state = recording_state
+    # Stesso oggetto lista passato a VoicePipeline (non una copia): mutarla in
+    # place dagli endpoint /wake-word/* qui sotto la aggiorna anche li',
+    # senza dover ricostruire la pipeline o riavviare stt_service.
+    app.state.extra_variants = extra_variants
 
     app_logger.info("stt_service pronto: ascolto attivo per il nome '%s'", settings.bot_name)
 
@@ -251,6 +260,43 @@ async def live_stop() -> LiveStateResponse:
     app.state.pipeline.stop_live_mode()
     app.state.logger.info("Modalita' live fermata")
     return LiveStateResponse(live=False)
+
+
+@app.get("/wake-word/variants", response_model=WakeWordVariantsResponse)
+async def wake_word_variants() -> WakeWordVariantsResponse:
+    return WakeWordVariantsResponse(variants=list(app.state.extra_variants))
+
+
+@app.post("/wake-word/variants", response_model=WakeWordVariantsResponse)
+async def wake_word_add_variant(request: WakeWordVariantRequest) -> WakeWordVariantsResponse:
+    """Aggiunge una variante di trascrizione raccolta durante la calibrazione
+    (es. l'utente ha visto nei log che Whisper ha scritto il nome in modo
+    diverso dal solito e la incolla qui): mutazione in place della stessa
+    lista gia' in uso da VoicePipeline, cosi' ha effetto immediato."""
+    variant = request.variant.strip()
+    if variant and variant.lower() not in {v.lower() for v in app.state.extra_variants}:
+        app.state.extra_variants.append(variant)
+        save_extra_variants(app.state.guard, app.state.settings.resolved_sandbox_root(), app.state.extra_variants)
+        app.state.logger.info("Variante wake-word aggiunta: %s", variant)
+    return WakeWordVariantsResponse(variants=list(app.state.extra_variants))
+
+
+@app.post("/wake-word/variants/remove", response_model=WakeWordVariantsResponse)
+async def wake_word_remove_variant(request: WakeWordVariantRequest) -> WakeWordVariantsResponse:
+    variant = request.variant.strip().lower()
+    app.state.extra_variants[:] = [v for v in app.state.extra_variants if v.lower() != variant]
+    save_extra_variants(app.state.guard, app.state.settings.resolved_sandbox_root(), app.state.extra_variants)
+    return WakeWordVariantsResponse(variants=list(app.state.extra_variants))
+
+
+@app.post("/wake-word/test", response_model=WakeWordTestResponse)
+async def wake_word_test(request: WakeWordTestRequest) -> WakeWordTestResponse:
+    """Verifica se una frase (tipicamente incollata da un log di trascrizione
+    reale) verrebbe riconosciuta come wake-word con la configurazione
+    attuale (nome + varianti): utile per calibrare senza dover davvero
+    parlare al microfono e aspettare che finisca in un log."""
+    matches = contains_wake_word(request.text, app.state.settings.bot_name, extra_variants=app.state.extra_variants)
+    return WakeWordTestResponse(matches=matches)
 
 
 @app.post("/shutdown", status_code=202)

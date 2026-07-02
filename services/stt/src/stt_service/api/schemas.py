@@ -33,3 +33,19 @@ class RecordingStateResponse(BaseModel):
 
 class LiveStateResponse(BaseModel):
     live: bool
+
+
+class WakeWordVariantsResponse(BaseModel):
+    variants: list[str]
+
+
+class WakeWordVariantRequest(BaseModel):
+    variant: str
+
+
+class WakeWordTestRequest(BaseModel):
+    text: str
+
+
+class WakeWordTestResponse(BaseModel):
+    matches: bool

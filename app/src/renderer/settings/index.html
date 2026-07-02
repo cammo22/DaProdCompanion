@@ -43,6 +43,29 @@
 
   <hr />
 
+  <div id="wake-word-section">
+    <h2>Calibrazione riconoscimento nome</h2>
+    <p>
+      Se nei log vedi che Whisper trascrive il nome del bot in modo diverso dal solito, incolla
+      qui esattamente quella trascrizione: verra' riconosciuta come se avessi detto il nome giusto,
+      senza bisogno di riavviare l'app.
+    </p>
+    <div class="wake-word-add-row">
+      <input id="wake-word-variant-input" type="text" placeholder="es. bab a sone" autocomplete="off" />
+      <button type="button" id="wake-word-add-button">Aggiungi</button>
+    </div>
+    <ul id="wake-word-variant-list" class="wake-word-variant-list"></ul>
+
+    <label for="wake-word-test-input">Prova una frase</label>
+    <div class="wake-word-add-row">
+      <input id="wake-word-test-input" type="text" placeholder="Incolla qui una trascrizione da testare" autocomplete="off" />
+      <button type="button" id="wake-word-test-button">Verifica</button>
+    </div>
+    <p id="wake-word-test-result" class="wake-word-test-result hidden"></p>
+  </div>
+
+  <hr />
+
   <div id="reset-section">
     <h2>Zona pericolosa</h2>
     <p>

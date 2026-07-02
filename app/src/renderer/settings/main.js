@@ -89,10 +89,76 @@ function initResetSection() {
         }
     });
 }
+function renderWakeWordVariants(variants) {
+    const list = document.getElementById("wake-word-variant-list");
+    if (!list)
+        return;
+    list.innerHTML = "";
+    if (variants.length === 0) {
+        const li = document.createElement("li");
+        li.className = "wake-word-variant-empty";
+        li.textContent = "Nessuna variante aggiunta ancora.";
+        list.appendChild(li);
+        return;
+    }
+    for (const variant of variants) {
+        const li = document.createElement("li");
+        li.className = "wake-word-variant-item";
+        const label = document.createElement("span");
+        label.textContent = variant;
+        const removeButton = document.createElement("button");
+        removeButton.type = "button";
+        removeButton.textContent = "✕";
+        removeButton.title = "Rimuovi";
+        removeButton.addEventListener("click", async () => {
+            renderWakeWordVariants(await settingsAPI.removeWakeWordVariant(variant));
+        });
+        li.appendChild(label);
+        li.appendChild(removeButton);
+        list.appendChild(li);
+    }
+}
+function initWakeWordSection() {
+    const input = document.getElementById("wake-word-variant-input");
+    const addButton = document.getElementById("wake-word-add-button");
+    const testInput = document.getElementById("wake-word-test-input");
+    const testButton = document.getElementById("wake-word-test-button");
+    const testResult = document.getElementById("wake-word-test-result");
+    if (!input || !addButton || !testInput || !testButton || !testResult)
+        return;
+    settingsAPI.listWakeWordVariants().then(renderWakeWordVariants);
+    const addVariant = async () => {
+        const variant = input.value.trim();
+        if (!variant)
+            return;
+        renderWakeWordVariants(await settingsAPI.addWakeWordVariant(variant));
+        input.value = "";
+    };
+    addButton.addEventListener("click", addVariant);
+    input.addEventListener("keydown", (event) => {
+        if (event.key === "Enter")
+            addVariant();
+    });
+    const runTest = async () => {
+        const text = testInput.value.trim();
+        if (!text)
+            return;
+        const matches = await settingsAPI.testWakeWord(text);
+        testResult.textContent = matches ? "✓ Riconosciuta come wake-word." : "✗ Non riconosciuta.";
+        testResult.classList.remove("hidden", "wake-word-test-match", "wake-word-test-no-match");
+        testResult.classList.add(matches ? "wake-word-test-match" : "wake-word-test-no-match");
+    };
+    testButton.addEventListener("click", runTest);
+    testInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter")
+            runTest();
+    });
+}
 function init() {
     loadCurrentSettings();
     initSaveForm();
     initResetSection();
+    initWakeWordSection();
 }
 init();
 export {};

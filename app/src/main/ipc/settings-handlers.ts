@@ -8,7 +8,14 @@
 import { app, ipcMain } from "electron";
 import { getConfig, refreshConfig, writeEnvValues } from "../config";
 import { resetAllMemory } from "../clients/brain-client";
-import { listMicDevices, type MicDevice } from "../clients/stt-client";
+import {
+  addWakeWordVariant,
+  listMicDevices,
+  listWakeWordVariants,
+  removeWakeWordVariant,
+  testWakeWord,
+  type MicDevice,
+} from "../clients/stt-client";
 import { listOllamaModels, type OllamaModel } from "../clients/ollama-client";
 
 export interface SettingsPayload {
@@ -69,4 +76,16 @@ export function registerSettingsHandlers(): void {
       return [];
     }
   });
+
+  ipcMain.handle("settings:list-wake-word-variants", async (): Promise<string[]> => {
+    try {
+      return await listWakeWordVariants();
+    } catch {
+      return [];
+    }
+  });
+
+  ipcMain.handle("settings:add-wake-word-variant", (_event, variant: string) => addWakeWordVariant(variant));
+  ipcMain.handle("settings:remove-wake-word-variant", (_event, variant: string) => removeWakeWordVariant(variant));
+  ipcMain.handle("settings:test-wake-word", (_event, text: string) => testWakeWord(text));
 }

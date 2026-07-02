@@ -87,3 +87,50 @@ export async function stopLiveMode(): Promise<void> {
     throw new Error(`stt /live/stop ha risposto ${res.status}`);
   }
 }
+
+/** Calibrazione del riconoscimento del nome: varianti di trascrizione extra
+ * (oltre al nome esatto e al fuzzy-match generico) che l'utente puo'
+ * raccogliere osservando i log e aggiungere qui, senza riavviare stt_service. */
+export async function listWakeWordVariants(): Promise<string[]> {
+  const res = await fetch(`${baseUrl()}/wake-word/variants`);
+  if (!res.ok) {
+    throw new Error(`stt /wake-word/variants ha risposto ${res.status}`);
+  }
+  return ((await res.json()) as { variants: string[] }).variants;
+}
+
+export async function addWakeWordVariant(variant: string): Promise<string[]> {
+  const res = await fetch(`${baseUrl()}/wake-word/variants`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ variant }),
+  });
+  if (!res.ok) {
+    throw new Error(`stt /wake-word/variants (POST) ha risposto ${res.status}`);
+  }
+  return ((await res.json()) as { variants: string[] }).variants;
+}
+
+export async function removeWakeWordVariant(variant: string): Promise<string[]> {
+  const res = await fetch(`${baseUrl()}/wake-word/variants/remove`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ variant }),
+  });
+  if (!res.ok) {
+    throw new Error(`stt /wake-word/variants/remove ha risposto ${res.status}`);
+  }
+  return ((await res.json()) as { variants: string[] }).variants;
+}
+
+export async function testWakeWord(text: string): Promise<boolean> {
+  const res = await fetch(`${baseUrl()}/wake-word/test`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+  });
+  if (!res.ok) {
+    throw new Error(`stt /wake-word/test ha risposto ${res.status}`);
+  }
+  return ((await res.json()) as { matches: boolean }).matches;
+}

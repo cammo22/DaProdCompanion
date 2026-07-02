@@ -24,4 +24,9 @@ contextBridge.exposeInMainWorld("settingsAPI", {
   resetMemory: (): Promise<{ status: string }> => ipcRenderer.invoke("settings:reset-memory"),
   listMicDevices: (): Promise<MicDevice[]> => ipcRenderer.invoke("settings:list-mic-devices"),
   listOllamaModels: (): Promise<OllamaModel[]> => ipcRenderer.invoke("settings:list-ollama-models"),
+  listWakeWordVariants: (): Promise<string[]> => ipcRenderer.invoke("settings:list-wake-word-variants"),
+  addWakeWordVariant: (variant: string): Promise<string[]> => ipcRenderer.invoke("settings:add-wake-word-variant", variant),
+  removeWakeWordVariant: (variant: string): Promise<string[]> =>
+    ipcRenderer.invoke("settings:remove-wake-word-variant", variant),
+  testWakeWord: (text: string): Promise<boolean> => ipcRenderer.invoke("settings:test-wake-word", text),
 });
