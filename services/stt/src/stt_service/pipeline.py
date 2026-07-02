@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Callable
 
 import numpy as np
 
@@ -43,6 +44,7 @@ class VoicePipeline:
         extra_variants: list[str],
         conversation_window: ConversationWindow | None = None,
         merge_window_seconds: float = _MERGE_WINDOW_SECONDS,
+        on_wake_word: Callable[[], None] = lambda: None,
     ) -> None:
         self._engine = engine
         self._brain = brain
@@ -50,6 +52,7 @@ class VoicePipeline:
         self._extra_variants = extra_variants
         self._conversation_window = conversation_window or ConversationWindow()
         self._merge_window_seconds = merge_window_seconds
+        self._on_wake_word = on_wake_word
         self._pending_parts: list[str] = []
         self._flush_task: asyncio.Task | None = None
 
@@ -69,6 +72,7 @@ class VoicePipeline:
 
         if has_wake_word:
             logger.info("Wake-word rilevato, inoltro a brain_service")
+            self._on_wake_word()
         elif is_continuation:
             logger.info("Discorso ancora in corso (troncato dal tetto massimo), accodo")
         else:

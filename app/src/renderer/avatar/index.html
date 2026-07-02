@@ -17,18 +17,21 @@
       <span></span><span></span><span></span><span></span><span></span>
     </div>
   </div>
-  <button id="mic-mute-button" class="mic-mute-button" type="button" title="Muta/riattiva il microfono">
-    <span id="mic-mute-icon">🎤</span>
-  </button>
-  <button id="record-button" class="side-button record-button" type="button" title="Clicca per registrare, clicca di nuovo per inviare">
-    <span id="record-icon">🎙️</span>
-  </button>
-  <button id="live-button" class="side-button live-button" type="button" title="Modalita' live: parla senza dire il nome del bot">
-    <span id="live-icon">💬</span>
-  </button>
-  <button id="skip-button" class="side-button skip-button" type="button" title="Salta la lettura della risposta" disabled>
-    ⏭️
-  </button>
+  <div class="button-bar">
+    <button id="mic-mute-button" class="toolbar-button" type="button" title="Muta/riattiva il microfono">
+      <span id="mic-mute-icon">🎤</span>
+    </button>
+    <button id="record-button" class="toolbar-button record-button" type="button" title="Clicca per registrare, clicca di nuovo per inviare">
+      <span id="record-icon">🎙️</span>
+    </button>
+    <span class="button-bar-divider"></span>
+    <button id="live-button" class="toolbar-button live-button" type="button" title="Modalita' live: parla senza dire il nome del bot">
+      <span id="live-icon">💬</span>
+    </button>
+    <button id="skip-button" class="toolbar-button skip-button" type="button" title="Salta la lettura della risposta" disabled>
+      ⏭️
+    </button>
+  </div>
   <audio id="voice-audio" hidden></audio>
   <script type="module" src="./main.js"></script>
 </body>

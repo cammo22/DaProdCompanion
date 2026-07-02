@@ -79,13 +79,6 @@ async def lifespan(app: FastAPI):
     brain = BrainClient(f"http://127.0.0.1:{settings.brain_http_port}")
     extra_variants = load_extra_variants(guard, sandbox_root)
 
-    pipeline = VoicePipeline(
-        engine=engine,
-        brain=brain,
-        bot_name=settings.bot_name,
-        extra_variants=extra_variants,
-    )
-
     main_loop = asyncio.get_event_loop()
     stop_event = threading.Event()
     mute_state = MicMuteState()
@@ -99,6 +92,14 @@ async def lifespan(app: FastAPI):
                 app_logger.exception("Notifica evento '%s' a brain_service fallita", event_type)
 
         asyncio.run_coroutine_threadsafe(_do(), main_loop)
+
+    pipeline = VoicePipeline(
+        engine=engine,
+        brain=brain,
+        bot_name=settings.bot_name,
+        extra_variants=extra_variants,
+        on_wake_word=lambda: _notify("wake-word-detected"),
+    )
 
     def on_segment(audio):
         asyncio.run_coroutine_threadsafe(pipeline.handle_segment(audio), main_loop)

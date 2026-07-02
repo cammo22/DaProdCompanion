@@ -35,6 +35,12 @@ html, body {
   animation: listening-bounce 0.6s ease-in-out infinite;
 }
 
+.avatar[data-state="wake-word"] .avatar-core {
+  background: radial-gradient(circle at 35% 30%, #ff9a8a, #ff3b3b 65%, #a01717);
+  box-shadow: 0 0 40px rgba(255, 59, 59, 0.75);
+  animation: wake-word-flash 0.5s ease-in-out infinite;
+}
+
 .avatar[data-state="thinking"] .avatar-core {
   background: radial-gradient(circle at 35% 30%, #ffd98a, #ffab4a 65%, #b06a2f);
   animation: thinking-pulse 0.9s ease-in-out infinite;
@@ -129,6 +135,11 @@ html, body {
   100% { transform: scale(1.45); opacity: 0; }
 }
 
+@keyframes wake-word-flash {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
 @keyframes thinking-pulse {
   0%, 100% { transform: scale(0.96) rotate(0deg); }
   33% { transform: scale(1.05) rotate(-4deg); }
@@ -188,72 +199,63 @@ html, body {
   white-space: pre-wrap;
 }
 
-.mic-mute-button {
+/* Toolbar unica e compatta, centrata sotto il blob, invece di 4 pulsanti
+   sparsi ai bordi della finestra: raggruppa "input" (muto/registra) e
+   "modalita'" (live/skip) come due cluster visivamente separati da un
+   piccolo divisore, cosi' e' chiaro a colpo d'occhio a cosa serve ognuno. */
+.button-bar {
   position: absolute;
-  right: 14px;
+  left: 50%;
   bottom: 14px;
-  width: 34px;
-  height: 34px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 20px;
+  background: rgba(15, 15, 25, 0.35);
+  -webkit-app-region: no-drag;
+}
+
+.button-bar-divider {
+  width: 1px;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.2);
+  margin: 0 2px;
+}
+
+.toolbar-button {
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   border: none;
-  background: rgba(20, 20, 30, 0.45);
+  background: rgba(255, 255, 255, 0.08);
   color: #fff;
-  font-size: 16px;
+  font-size: 15px;
   line-height: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  opacity: 0.55;
-  transition: opacity 0.2s ease, background 0.2s ease;
+  opacity: 0.7;
+  transition: opacity 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
   -webkit-app-region: no-drag;
 }
 
-.mic-mute-button:hover {
+.toolbar-button:hover {
   opacity: 1;
+  transform: scale(1.08);
 }
 
 .mic-mute-button.muted {
   background: rgba(220, 60, 60, 0.75);
-  opacity: 0.9;
-}
-
-.side-button {
-  position: absolute;
-  bottom: 14px;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  border: none;
-  background: rgba(20, 20, 30, 0.45);
-  color: #fff;
-  font-size: 16px;
-  line-height: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  opacity: 0.55;
-  transition: opacity 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
-  -webkit-app-region: no-drag;
-}
-
-.side-button:hover {
-  opacity: 1;
-}
-
-.record-button {
-  left: 14px;
+  opacity: 0.95;
 }
 
 .record-button.recording {
   background: rgba(220, 60, 60, 0.85);
   opacity: 1;
   animation: recording-pulse 1.2s ease-in-out infinite;
-}
-
-.live-button {
-  left: 58px;
 }
 
 .live-button.active {
@@ -263,13 +265,13 @@ html, body {
 }
 
 .skip-button {
-  left: 102px;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .skip-button:disabled {
   opacity: 0.25;
   cursor: default;
+  transform: none;
 }
 
 @keyframes recording-pulse {

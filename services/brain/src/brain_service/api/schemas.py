@@ -24,7 +24,13 @@ class ChatResponse(BaseModel):
 
 
 class VoiceEventRequest(BaseModel):
-    type: Literal["listening-started", "listening-finished", "recording-started", "recording-finished"]
+    type: Literal[
+        "listening-started",
+        "listening-finished",
+        "recording-started",
+        "recording-finished",
+        "wake-word-detected",
+    ]
 
 
 class HealthResponse(BaseModel):

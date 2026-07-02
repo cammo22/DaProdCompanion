@@ -21,6 +21,7 @@ import { BrainEventClient, type BrainEvent } from "./services/ws-client";
 import {
   createAvatarWindow,
   flashReply,
+  flashWakeWordDetected,
   hideDreamingBubble,
   setAvatarState,
   setListening,
@@ -87,6 +88,9 @@ function handleBrainEvent(event: BrainEvent): void {
       break;
     case "listening-finished":
       setListening(false);
+      break;
+    case "wake-word-detected":
+      flashWakeWordDetected();
       break;
     case "voice-processing":
       setVoiceProcessing();

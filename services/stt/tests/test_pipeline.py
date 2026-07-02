@@ -85,6 +85,37 @@ def test_without_wake_word_and_not_awake_is_discarded():
     assert brain.sent == []
 
 
+def test_on_wake_word_callback_fires_when_wake_word_detected():
+    calls: list[int] = []
+    pipeline = VoicePipeline(
+        engine=FakeEngine("Babbasone, ciao"),
+        brain=FakeBrain(),
+        bot_name="Babbasone",
+        extra_variants=[],
+        conversation_window=ConversationWindow(clock=FakeClock()),
+        on_wake_word=lambda: calls.append(1),
+    )
+    asyncio.run(pipeline.handle_segment(silence_segment()))
+    assert calls == [1]
+
+
+def test_on_wake_word_callback_does_not_fire_without_wake_word():
+    clock = FakeClock()
+    calls: list[int] = []
+    pipeline = VoicePipeline(
+        engine=FakeEngine("Babbasone, ciao", "e domani che tempo fa"),
+        brain=FakeBrain(),
+        bot_name="Babbasone",
+        extra_variants=[],
+        conversation_window=ConversationWindow(clock=clock),
+        on_wake_word=lambda: calls.append(1),
+    )
+    asyncio.run(pipeline.handle_segment(silence_segment()))  # apre la finestra: 1 chiamata
+    clock.advance(10.0)
+    asyncio.run(pipeline.handle_segment(silence_segment()))  # continuazione senza nome: nessuna nuova chiamata
+    assert calls == [1]
+
+
 def test_follow_up_without_wake_word_forwarded_while_awake():
     clock = FakeClock()
     pipeline, brain = make_pipeline("Babbasone, ciao", "e domani che tempo fa", clock=clock)

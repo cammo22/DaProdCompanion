@@ -15,7 +15,7 @@
 import { BrowserWindow, screen } from "electron";
 import path from "node:path";
 
-export type AvatarState = "idle" | "listening" | "thinking" | "speaking" | "dreaming";
+export type AvatarState = "idle" | "listening" | "wake-word" | "thinking" | "speaking" | "dreaming";
 
 let avatarWindow: BrowserWindow | null = null;
 let idleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -83,6 +83,19 @@ export function flashReply(
 export function setListening(active: boolean): void {
   if (idleTimer) clearTimeout(idleTimer);
   setAvatarState(active ? "listening" : "idle");
+}
+
+/** Flash rosso: wake-word riconosciuto (vedi on_wake_word in VoicePipeline ->
+ * evento wake-word-detected). Timeout di auto-ripristino proprio (non solo
+ * "thinking" successivo), perche' se la chiamata a brain fallisse a livello
+ * di rete (non solo a livello LLM, gia' coperto da voice-processing-failed)
+ * l'avatar resterebbe rosso per sempre senza questo timer. */
+export function flashWakeWordDetected(): void {
+  if (idleTimer) clearTimeout(idleTimer);
+  setAvatarState("wake-word");
+  idleTimer = setTimeout(() => {
+    setAvatarState("idle");
+  }, 3000);
 }
 
 /** Stato "sta pensando" durante il percorso vocale (tra l'invio a brain e
