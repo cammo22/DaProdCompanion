@@ -24,7 +24,7 @@ class ChatResponse(BaseModel):
 
 
 class VoiceEventRequest(BaseModel):
-    type: Literal["listening-started", "listening-finished"]
+    type: Literal["listening-started", "listening-finished", "recording-started", "recording-finished"]
 
 
 class HealthResponse(BaseModel):
@@ -63,3 +63,8 @@ class ConversationTurnOut(BaseModel):
 
 class ConversationHistoryResponse(BaseModel):
     turns: list[ConversationTurnOut]
+
+
+class DreamingStatusResponse(BaseModel):
+    last_dream_at: str | None
+    next_scheduled_at: str | None

@@ -10,9 +10,28 @@ const NODE_TYPE_COLORS = {
     Concetto: "#9b5cff",
     Luogo: "#4affa0",
 };
+// Stato dei controlli (slider): letto sia dagli accessor reattivi
+// (nodeVisibility, richiamato ad ogni frame) sia dai listener di input.
+let minConnectionsFilter = 0;
+function computeDegrees(snapshot) {
+    const degrees = new Map();
+    for (const node of snapshot.nodes)
+        degrees.set(node.id, 0);
+    for (const edge of snapshot.edges) {
+        degrees.set(edge.source_node_id, (degrees.get(edge.source_node_id) ?? 0) + 1);
+        degrees.set(edge.target_node_id, (degrees.get(edge.target_node_id) ?? 0) + 1);
+    }
+    return degrees;
+}
 function toGraphData(snapshot) {
+    const degrees = computeDegrees(snapshot);
     return {
-        nodes: snapshot.nodes.map((n) => ({ id: String(n.id), nodeType: n.node_type, label: n.label })),
+        nodes: snapshot.nodes.map((n) => ({
+            id: String(n.id),
+            nodeType: n.node_type,
+            label: n.label,
+            degree: degrees.get(n.id) ?? 0,
+        })),
         links: snapshot.edges.map((e) => ({
             source: String(e.source_node_id),
             target: String(e.target_node_id),
@@ -72,11 +91,14 @@ function render(snapshot) {
             .width(container.clientWidth)
             .height(container.clientHeight)
             .nodeId("id")
-            .nodeLabel((node) => `${node.label} (${node.nodeType})`)
+            .nodeLabel((node) => `${node.label} (${node.nodeType}, ${node.degree} collegamenti)`)
+            .nodeVisibility((node) => node.degree >= minConnectionsFilter)
             .linkColor(() => "rgba(255,255,255,0.25)")
             .onNodeClick((node) => showNodeDetail(node))
             .nodeCanvasObject((node, ctx, scale) => {
-            const radius = 5;
+            // Raggio in base al numero di collegamenti: piu' un nodo e'
+            // centrale nel grafo, piu' risalta a colpo d'occhio.
+            const radius = 4 + Math.min(node.degree, 10) * 1.1;
             ctx.beginPath();
             ctx.arc(node.x ?? 0, node.y ?? 0, radius, 0, 2 * Math.PI);
             ctx.fillStyle = NODE_TYPE_COLORS[node.nodeType] ?? "#aaaaaa";
@@ -89,9 +111,10 @@ function render(snapshot) {
             ctx.fillText(node.label, node.x ?? 0, (node.y ?? 0) + radius + 2);
         })
             .nodePointerAreaPaint((node, color, ctx) => {
+            const radius = 4 + Math.min(node.degree, 10) * 1.1;
             ctx.fillStyle = color;
             ctx.beginPath();
-            ctx.arc(node.x ?? 0, node.y ?? 0, 8, 0, 2 * Math.PI);
+            ctx.arc(node.x ?? 0, node.y ?? 0, radius + 3, 0, 2 * Math.PI);
             ctx.fill();
         });
     }
@@ -131,12 +154,61 @@ function initRefreshButton() {
             button.disabled = false;
             button.textContent = defaultLabel;
         }
+        await refreshDreamTimer();
     });
+}
+function initMinConnectionsSlider() {
+    const slider = document.getElementById("min-connections");
+    const valueLabel = document.getElementById("min-connections-value");
+    if (!slider || !valueLabel)
+        return;
+    slider.addEventListener("input", () => {
+        minConnectionsFilter = Number(slider.value);
+        valueLabel.textContent = slider.value;
+        // nodeVisibility e' un accessor riletto ad ogni frame, ma se la
+        // simulazione si e' gia' fermata (grafo stabile) non ridisegna da sola:
+        // un piccolo reheat forza il ricalcolo visibile subito.
+        graph?.d3ReheatSimulation();
+    });
+}
+function initRepulsionSlider() {
+    const slider = document.getElementById("repulsion");
+    if (!slider)
+        return;
+    slider.addEventListener("input", () => {
+        const strength = -Number(slider.value);
+        graph?.d3Force("charge")?.strength(strength);
+        graph?.d3ReheatSimulation();
+    });
+}
+function formatDreamTime(iso) {
+    if (!iso)
+        return "mai";
+    const date = new Date(iso);
+    return date.toLocaleString("it-IT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+async function refreshDreamTimer() {
+    const lastEl = document.getElementById("last-dream-at");
+    const nextEl = document.getElementById("next-dream-at");
+    if (!lastEl || !nextEl)
+        return;
+    try {
+        const status = await graphAPI.getDreamingStatus();
+        lastEl.textContent = formatDreamTime(status.lastDreamAt);
+        nextEl.textContent = formatDreamTime(status.nextScheduledAt);
+    }
+    catch (err) {
+        console.warn("Impossibile leggere lo stato del dreaming:", err);
+    }
 }
 function init() {
     loadAndRender();
     graphAPI.onUpdated(() => loadAndRender());
     initRefreshButton();
+    initMinConnectionsSlider();
+    initRepulsionSlider();
+    refreshDreamTimer();
+    setInterval(refreshDreamTimer, 60_000);
     document.getElementById("node-detail-close")?.addEventListener("click", () => hideNodeDetail());
     window.addEventListener("resize", () => {
         const container = document.getElementById("graph-container");

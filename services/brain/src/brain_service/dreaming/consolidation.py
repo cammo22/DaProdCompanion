@@ -17,6 +17,7 @@ from pathlib import Path
 import httpx
 from companion_shared.sandbox import FilesystemGuard
 
+from ..conversation.tts_client import TtsClient
 from ..graph.writer import find_or_create_edge, find_or_create_node
 from ..memory import episodic, semantic
 from ..memory.embeddings import generate_embedding
@@ -102,6 +103,7 @@ async def run_dreaming_cycle(
     num_ctx: int,
     guard: FilesystemGuard,
     sandbox_root: Path,
+    tts: TtsClient | None = None,
     on_event: Callable[[str, dict], None] | None = None,
 ) -> int:
     """Esegue un ciclo di consolidamento. Restituisce il numero di episodi
@@ -188,6 +190,23 @@ async def run_dreaming_cycle(
 
         if graph_changed and on_event:
             on_event("graph-updated", {})
+
+        # Annuncio del sogno: l'utente vuole "sentirlo" dire cosa ha sognato,
+        # non solo vederlo comparire nel grafo. Degradazione controllata come
+        # per il resto del TTS: se fallisce, il consolidamento resta valido.
+        if on_event:
+            announcement = f"Ho sognato questo: {summary}"
+            audio_path: str | None = None
+            duration_seconds: float | None = None
+            if tts is not None:
+                try:
+                    audio_path, duration_seconds = await tts.speak(announcement)
+                except Exception:
+                    logger.warning("Sintesi vocale dell'annuncio del sogno fallita, resta solo il testo")
+            on_event(
+                "dream-announcement",
+                {"summary": announcement, "audio_path": audio_path, "duration_seconds": duration_seconds},
+            )
 
         consolidated_count = len(event_ids)
         logger.info(

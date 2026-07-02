@@ -7,9 +7,28 @@
 </head>
 <body>
   <div id="graph-container"></div>
-  <button id="refresh-now-button" class="refresh-now-button" type="button">
-    Aggiorna adesso
-  </button>
+
+  <div id="controls-panel" class="controls-panel">
+    <button id="refresh-now-button" class="refresh-now-button" type="button">
+      Aggiorna adesso
+    </button>
+
+    <div class="control-row">
+      <label for="min-connections">Connessioni minime: <span id="min-connections-value">0</span></label>
+      <input id="min-connections" type="range" min="0" max="6" step="1" value="0" />
+    </div>
+
+    <div class="control-row">
+      <label for="repulsion">Repulsione</label>
+      <input id="repulsion" type="range" min="20" max="400" step="10" value="120" />
+    </div>
+
+    <div id="dream-timer" class="dream-timer">
+      <div>Ultimo sogno: <span id="last-dream-at">—</span></div>
+      <div>Prossimo: <span id="next-dream-at">—</span></div>
+    </div>
+  </div>
+
   <div id="node-detail" class="node-detail hidden">
     <button id="node-detail-close" class="node-detail-close" title="Chiudi">✕</button>
     <h2 id="node-detail-title"></h2>

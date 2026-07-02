@@ -25,7 +25,16 @@ Scheduler del dreaming: tre modalita' complementari.
 Espone anche trigger_now() per un ciclo immediato fuori programma (usato
 dall'endpoint POST /dreaming/run, utile sia per i test sia per un eventuale
 pulsante futuro "consolida adesso").
-"""
+
+Sospensione (suppress()/unsuppress()): il trigger per dimensione scatta
+SUBITO, senza aspettare una pausa — se scatta esattamente mentre l'utente
+sta registrando manualmente (pulsante "registra") o sta parlando ad alta
+voce, il ciclo di dreaming (una chiamata pesante a Ollama, num_predict=2048)
+finisce in coda sulla STESSA istanza Ollama insieme alla prossima risposta
+conversazionale, ritardandola pesantemente — e' il bug segnalato dal vivo
+dall'utente ("stavo parlando e nel frattempo ha sognato"). stt_service
+notifica inizio/fine di ascolto e registrazione tramite /events/voice, che
+sospende/riattiva questo scheduler di conseguenza (vedi api/http.py)."""
 
 from __future__ import annotations
 
@@ -49,6 +58,19 @@ class DreamingScheduler:
         self._task: asyncio.Task | None = None
         self._idle_task: asyncio.Task | None = None
         self._lock = asyncio.Lock()
+        self._suppressed = False
+        self._last_dream_at: datetime | None = None
+        self._next_cron_run_at: datetime | None = None
+
+    def status(self) -> dict[str, str | None]:
+        """Per il timer nel pannello grafo: ultima volta che ha sognato
+        davvero (consolidated_events > 0) e prossimo giro notturno
+        programmato. Non copre i trigger per inattivita'/dimensione, che non
+        hanno un orario fisso da annunciare in anticipo."""
+        return {
+            "last_dream_at": self._last_dream_at.isoformat() if self._last_dream_at else None,
+            "next_scheduled_at": self._next_cron_run_at.isoformat() if self._next_cron_run_at else None,
+        }
 
     def start(self) -> None:
         self._task = asyncio.create_task(self._loop())
@@ -60,11 +82,29 @@ class DreamingScheduler:
             self._idle_task.cancel()
 
     async def trigger_now(self) -> int:
-        """Esegue subito un ciclo, fuori dallo schedule. Il lock evita che un
-        ciclo schedulato e uno manuale girino in contemporanea sulla stessa
-        connessione DB."""
+        """Esegue subito un ciclo, fuori dallo schedule (richiesto in modo
+        esplicito, es. dal pulsante nel pannello grafo): ignora la
+        sospensione, a differenza dei trigger automatici sotto. Il lock evita
+        che un ciclo schedulato e uno manuale girino in contemporanea sulla
+        stessa connessione DB."""
         async with self._lock:
-            return await self._run_cycle()
+            count = await self._run_cycle()
+            if count > 0:
+                self._last_dream_at = datetime.now()
+            return count
+
+    def suppress(self) -> None:
+        """L'utente sta ascoltando/registrando attivamente: nessun trigger
+        automatico deve partire finche' non richiama unsuppress(), altrimenti
+        rischia di mettersi in coda su Ollama insieme alla prossima risposta
+        conversazionale e ritardarla pesantemente."""
+        self._suppressed = True
+
+    def unsuppress(self) -> None:
+        """Fine ascolto/registrazione: i trigger automatici tornano attivi
+        dal prossimo scambio (non ne innesca uno subito qui, e' il normale
+        notify_activity()/check_size_trigger() del prossimo /chat a farlo)."""
+        self._suppressed = False
 
     def notify_activity(self) -> None:
         """Da chiamare ad ogni scambio di chat riuscito (testo o voce):
@@ -93,9 +133,14 @@ class DreamingScheduler:
         await self._run_locked_and_log("innescato da inattivita'")
 
     async def _run_locked_and_log(self, label: str) -> None:
+        if self._suppressed:
+            logger.info("Dreaming: ciclo %s rimandato (ascolto/registrazione in corso)", label)
+            return
         async with self._lock:
             try:
-                await self._run_cycle()
+                count = await self._run_cycle()
+                if count > 0:
+                    self._last_dream_at = datetime.now()
             except Exception:
                 logger.exception("Dreaming: ciclo %s fallito", label)
 
@@ -103,14 +148,11 @@ class DreamingScheduler:
         while True:
             now = datetime.now()
             next_run = croniter(self._cron_expression, now).get_next(datetime)
+            self._next_cron_run_at = next_run
             sleep_seconds = max((next_run - now).total_seconds(), 1.0)
             logger.info("Dreaming: prossimo giro programmato alle %s", next_run.isoformat())
             try:
                 await asyncio.sleep(sleep_seconds)
             except asyncio.CancelledError:
                 return
-            async with self._lock:
-                try:
-                    await self._run_cycle()
-                except Exception:
-                    logger.exception("Dreaming: ciclo schedulato fallito")
+            await self._run_locked_and_log("schedulato")

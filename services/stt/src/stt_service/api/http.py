@@ -179,14 +179,25 @@ async def speaking_mute(request: SpeakingMuteRequest) -> MuteStateResponse:
     return MuteStateResponse(muted=state.muted)
 
 
+async def _notify_brain_of_event(event_type: str) -> None:
+    try:
+        await app.state.brain.notify_event(event_type)
+    except Exception:
+        app.state.logger.exception("Notifica evento '%s' a brain_service fallita", event_type)
+
+
 @app.post("/recording/start", response_model=RecordingStateResponse)
 async def recording_start() -> RecordingStateResponse:
     """Pulsante 'registra' sull'avatar: mentre attivo, il thread di cattura
     accumula tutto l'audio in un buffer dedicato invece di passarlo a
     SpeechSegmenter (vedi capture.py) — nessuna soglia di silenzio, nessun
-    wake-word richiesto, il click stesso e' l'intenzione dell'utente."""
+    wake-word richiesto, il click stesso e' l'intenzione dell'utente.
+    Sospende anche il dreaming automatico lato brain (vedi events_voice in
+    brain_service/api/http.py): non deve mettersi in coda su Ollama insieme
+    alla registrazione che sta per essere inviata."""
     app.state.recording_state.active = True
     app.state.logger.info("Registrazione manuale avviata")
+    await _notify_brain_of_event("recording-started")
     return RecordingStateResponse(recording=True)
 
 
@@ -198,6 +209,7 @@ async def recording_stop() -> RecordingStateResponse:
     al piu' entro un blocco (mezzo secondo)."""
     app.state.recording_state.active = False
     app.state.logger.info("Registrazione manuale fermata")
+    await _notify_brain_of_event("recording-finished")
     return RecordingStateResponse(recording=False)
 
 

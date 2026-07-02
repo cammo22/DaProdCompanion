@@ -48,14 +48,37 @@ let ttsSupervisor: ProcessSupervisor | null = null;
 let sttSupervisor: ProcessSupervisor | null = null;
 let brainEvents: BrainEventClient | null = null;
 
+// dream-announcement e dreaming-finished arrivano dallo stesso ciclo, in
+// quest'ordine (vedi consolidation.py: l'annuncio e' pubblicato nel try,
+// dreaming-finished nel finally che gira sempre dopo): se dreaming-finished
+// nascondesse comunque la bubble, interromperebbe subito l'annuncio appena
+// mostrato da flashReply. Questo flag lo evita senza dover cambiare l'ordine
+// degli eventi lato brain.
+let dreamAnnouncedThisCycle = false;
+
 function handleBrainEvent(event: BrainEvent): void {
   switch (event.type) {
     case "dreaming-started":
       showDreamingBubble();
       break;
     case "dreaming-finished":
-      hideDreamingBubble();
+      if (!dreamAnnouncedThisCycle) {
+        hideDreamingBubble();
+      }
+      dreamAnnouncedThisCycle = false;
       break;
+    case "dream-announcement": {
+      // Il companion "racconta" cosa ha sognato, sia a voce sia in bolla:
+      // stesso meccanismo di voice-reply, riusato qui.
+      dreamAnnouncedThisCycle = true;
+      const summary = typeof event.summary === "string" ? event.summary : "";
+      const audioPath = typeof event.audio_path === "string" ? event.audio_path : null;
+      const durationSeconds = typeof event.duration_seconds === "number" ? event.duration_seconds : null;
+      const bubbleDurationMs = durationSeconds ? durationSeconds * 1000 + 1000 : 10000;
+      const audioUrl = audioPath ? pathToFileURL(audioPath).href : null;
+      flashReply(summary, false, bubbleDurationMs, audioUrl);
+      break;
+    }
     case "graph-updated":
       notifyGraphUpdated();
       break;
@@ -130,11 +153,10 @@ app.whenReady().then(async () => {
   registerAudioHandlers();
 
   // Tutte e tre le finestre principali visibili di default (avatar, chat,
-  // cervellone): l'utente abbassa quella che non gli serve invece di doverle
-  // aprire a mano una per una. Senza foco all'avvio: non deve rubare
-  // l'attenzione da quello che l'utente stava gia' facendo.
-  showChatWindow(false);
-  showGraphWindow(false);
+  // cervellone), in primo piano: l'utente abbassa quella che non gli serve
+  // invece di doverle aprire a mano una per una.
+  showChatWindow();
+  showGraphWindow();
 
   setAvatarState("thinking");
   console.log("[main] avvio brain_service, tts_service e stt_service...");

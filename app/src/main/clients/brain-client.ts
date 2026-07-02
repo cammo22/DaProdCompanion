@@ -93,3 +93,17 @@ export async function getConversationHistory(limit = 100): Promise<ConversationT
   };
   return data.turns.map((t) => ({ id: t.id, eventType: t.event_type, content: t.content, createdAt: t.created_at }));
 }
+
+export interface DreamingStatus {
+  lastDreamAt: string | null;
+  nextScheduledAt: string | null;
+}
+
+export async function getDreamingStatus(): Promise<DreamingStatus> {
+  const res = await fetch(`${baseUrl()}/dreaming/status`);
+  if (!res.ok) {
+    throw new Error(`brain /dreaming/status ha risposto ${res.status}`);
+  }
+  const data = (await res.json()) as { last_dream_at: string | null; next_scheduled_at: string | null };
+  return { lastDreamAt: data.last_dream_at, nextScheduledAt: data.next_scheduled_at };
+}

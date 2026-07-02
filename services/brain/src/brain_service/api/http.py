@@ -33,6 +33,7 @@ from .schemas import (
     ConversationHistoryResponse,
     ConversationTurnOut,
     DreamingRunResponse,
+    DreamingStatusResponse,
     GraphSnapshotResponse,
     HealthResponse,
     VoiceEventRequest,
@@ -71,6 +72,7 @@ async def lifespan(app: FastAPI):
             num_ctx=settings.brain_model_num_ctx,
             guard=guard,
             sandbox_root=sandbox_root,
+            tts=tts,
             on_event=event_bus.publish,
         )
 
@@ -173,18 +175,37 @@ async def chat(request: ChatRequest) -> ChatResponse:
 async def events_voice(request: VoiceEventRequest) -> dict[str, str]:
     """Relay verso Electron per eventi originati da stt_service (stato del
     microfono) sull'unico canale WS esistente: per design solo brain parla
-    con Electron in push (vedi architettura.md), stt non apre un suo canale."""
+    con Electron in push (vedi architettura.md), stt non apre un suo canale.
+
+    Ascolto/registrazione attivi sospendono anche il dreaming automatico
+    (vedi DreamingScheduler.suppress): un ciclo di dreaming che scattasse
+    proprio mentre l'utente sta parlando o registrando si metterebbe in coda
+    su Ollama insieme alla risposta imminente e la ritarderebbe pesantemente."""
     app.state.event_bus.publish(request.type, {})
+    scheduler: DreamingScheduler = app.state.dreaming_scheduler
+    if request.type in ("listening-started", "recording-started"):
+        scheduler.suppress()
+    elif request.type in ("listening-finished", "recording-finished"):
+        scheduler.unsuppress()
     return {"status": "ok"}
 
 
 @app.post("/dreaming/run", response_model=DreamingRunResponse)
 async def dreaming_run() -> DreamingRunResponse:
     """Consolidamento immediato, fuori dallo schedule cron: utile per i test
-    e per un eventuale pulsante 'consolida adesso' in futuro."""
+    e per il pulsante 'aggiorna adesso' nel pannello grafo."""
     scheduler: DreamingScheduler = app.state.dreaming_scheduler
     consolidated = await scheduler.trigger_now()
     return DreamingRunResponse(consolidated_events=consolidated)
+
+
+@app.get("/dreaming/status", response_model=DreamingStatusResponse)
+async def dreaming_status() -> DreamingStatusResponse:
+    """Per il timer nel pannello grafo: ultima volta che ha sognato davvero
+    e prossimo giro notturno programmato."""
+    scheduler: DreamingScheduler = app.state.dreaming_scheduler
+    status = scheduler.status()
+    return DreamingStatusResponse(**status)
 
 
 @app.get("/graph/snapshot", response_model=GraphSnapshotResponse)

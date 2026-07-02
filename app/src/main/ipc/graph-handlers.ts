@@ -1,7 +1,14 @@
 import { ipcMain } from "electron";
-import { getGraphSnapshot, triggerDreaming, type GraphSnapshot } from "../clients/brain-client";
+import {
+  getDreamingStatus,
+  getGraphSnapshot,
+  triggerDreaming,
+  type DreamingStatus,
+  type GraphSnapshot,
+} from "../clients/brain-client";
 
 const EMPTY_SNAPSHOT: GraphSnapshot = { nodes: [], edges: [] };
+const EMPTY_STATUS: DreamingStatus = { lastDreamAt: null, nextScheduledAt: null };
 
 export function registerGraphHandlers(): void {
   ipcMain.handle("graph:get-snapshot", async () => {
@@ -17,4 +24,12 @@ export function registerGraphHandlers(): void {
   });
 
   ipcMain.handle("graph:trigger-now", () => triggerDreaming());
+
+  ipcMain.handle("graph:get-dreaming-status", async () => {
+    try {
+      return await getDreamingStatus();
+    } catch {
+      return EMPTY_STATUS;
+    }
+  });
 }
