@@ -5,4 +5,5 @@ contextBridge.exposeInMainWorld("graphAPI", {
   onUpdated: (callback: () => void): void => {
     ipcRenderer.on("graph:updated", () => callback());
   },
+  triggerNow: (): Promise<{ consolidated_events: number }> => ipcRenderer.invoke("graph:trigger-now"),
 });

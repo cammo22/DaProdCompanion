@@ -109,9 +109,34 @@ async function loadAndRender() {
         console.warn("Impossibile caricare il grafo (probabilmente brain_service non e' ancora pronto):", err);
     }
 }
+function initRefreshButton() {
+    const button = document.getElementById("refresh-now-button");
+    if (!button)
+        return;
+    const defaultLabel = button.textContent ?? "Aggiorna adesso";
+    button.addEventListener("click", async () => {
+        button.disabled = true;
+        button.textContent = "Aggiornamento...";
+        try {
+            await graphAPI.triggerNow();
+            // Se ci sono state nuove entita', arriva anche l'evento graph-updated
+            // via WS: questa chiamata e' comunque utile per il caso "nessuna novita'",
+            // dove quell'evento non scatterebbe mai (vedi consolidation.py).
+            await loadAndRender();
+        }
+        catch (err) {
+            console.error("Aggiornamento manuale del grafo fallito:", err);
+        }
+        finally {
+            button.disabled = false;
+            button.textContent = defaultLabel;
+        }
+    });
+}
 function init() {
     loadAndRender();
     graphAPI.onUpdated(() => loadAndRender());
+    initRefreshButton();
     document.getElementById("node-detail-close")?.addEventListener("click", () => hideNodeDetail());
     window.addEventListener("resize", () => {
         const container = document.getElementById("graph-container");

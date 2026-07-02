@@ -133,6 +133,11 @@ async def chat(request: ChatRequest) -> ChatResponse:
             app.state.event_bus.publish("voice-processing-failed", {})
         raise
 
+    # Rimanda il consolidamento "a caldo" (vedi DreamingScheduler.notify_activity):
+    # cosi' il grafo/la memoria semantica si aggiornano a ridosso della
+    # conversazione reale una volta che si ferma, non solo al giro notturno.
+    app.state.dreaming_scheduler.notify_activity()
+
     if is_voice:
         app.state.event_bus.publish(
             "voice-reply",

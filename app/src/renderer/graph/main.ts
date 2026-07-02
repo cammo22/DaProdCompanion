@@ -34,6 +34,7 @@ interface RenderNode {
 declare const graphAPI: {
   getSnapshot(): Promise<GraphSnapshot>;
   onUpdated(callback: () => void): void;
+  triggerNow(): Promise<{ consolidated_events: number }>;
 };
 
 declare class ForceGraph {
@@ -175,9 +176,33 @@ async function loadAndRender(): Promise<void> {
   }
 }
 
+function initRefreshButton(): void {
+  const button = document.getElementById("refresh-now-button") as HTMLButtonElement | null;
+  if (!button) return;
+  const defaultLabel = button.textContent ?? "Aggiorna adesso";
+
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    button.textContent = "Aggiornamento...";
+    try {
+      await graphAPI.triggerNow();
+      // Se ci sono state nuove entita', arriva anche l'evento graph-updated
+      // via WS: questa chiamata e' comunque utile per il caso "nessuna novita'",
+      // dove quell'evento non scatterebbe mai (vedi consolidation.py).
+      await loadAndRender();
+    } catch (err) {
+      console.error("Aggiornamento manuale del grafo fallito:", err);
+    } finally {
+      button.disabled = false;
+      button.textContent = defaultLabel;
+    }
+  });
+}
+
 function init(): void {
   loadAndRender();
   graphAPI.onUpdated(() => loadAndRender());
+  initRefreshButton();
 
   document.getElementById("node-detail-close")?.addEventListener("click", () => hideNodeDetail());
 

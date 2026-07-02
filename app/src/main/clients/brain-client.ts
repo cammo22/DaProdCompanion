@@ -60,6 +60,14 @@ export async function getGraphSnapshot(): Promise<GraphSnapshot> {
   return (await res.json()) as GraphSnapshot;
 }
 
+export async function triggerDreaming(): Promise<{ consolidated_events: number }> {
+  const res = await fetch(`${baseUrl()}/dreaming/run`, { method: "POST" });
+  if (!res.ok) {
+    throw new Error(`brain /dreaming/run ha risposto ${res.status}`);
+  }
+  return (await res.json()) as { consolidated_events: number };
+}
+
 export async function resetAllMemory(): Promise<{ status: string }> {
   const res = await fetch(`${baseUrl()}/admin/reset`, { method: "POST" });
   if (!res.ok) {

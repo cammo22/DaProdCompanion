@@ -1,5 +1,5 @@
 import { ipcMain } from "electron";
-import { getGraphSnapshot, type GraphSnapshot } from "../clients/brain-client";
+import { getGraphSnapshot, triggerDreaming, type GraphSnapshot } from "../clients/brain-client";
 
 const EMPTY_SNAPSHOT: GraphSnapshot = { nodes: [], edges: [] };
 
@@ -15,4 +15,6 @@ export function registerGraphHandlers(): void {
       return EMPTY_SNAPSHOT;
     }
   });
+
+  ipcMain.handle("graph:trigger-now", () => triggerDreaming());
 }
