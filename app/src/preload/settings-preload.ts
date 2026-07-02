@@ -13,10 +13,15 @@ export interface MicDevice {
   name: string;
 }
 
+export interface OllamaModel {
+  name: string;
+}
+
 contextBridge.exposeInMainWorld("settingsAPI", {
   get: (): Promise<SettingsPayload> => ipcRenderer.invoke("settings:get"),
   save: (payload: SettingsPayload): Promise<void> => ipcRenderer.invoke("settings:save", payload),
   restartApp: (): Promise<void> => ipcRenderer.invoke("settings:restart-app"),
   resetMemory: (): Promise<{ status: string }> => ipcRenderer.invoke("settings:reset-memory"),
   listMicDevices: (): Promise<MicDevice[]> => ipcRenderer.invoke("settings:list-mic-devices"),
+  listOllamaModels: (): Promise<OllamaModel[]> => ipcRenderer.invoke("settings:list-ollama-models"),
 });

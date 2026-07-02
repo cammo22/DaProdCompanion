@@ -13,7 +13,12 @@
     <input id="bot-name" type="text" maxlength="40" required />
 
     <label for="model-tag">Modello Ollama (cervello)</label>
-    <input id="model-tag" type="text" required />
+    <select id="model-tag" required>
+      <option value="">Caricamento modelli locali...</option>
+    </select>
+    <p id="model-tag-hint" class="field-hint hidden">
+      Ollama non raggiungibile: non e' stato possibile elencare i modelli locali installati.
+    </p>
 
     <label for="tts-voice">Voce TTS</label>
     <select id="tts-voice">
