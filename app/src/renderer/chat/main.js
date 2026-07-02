@@ -45,10 +45,25 @@ function skipAudio() {
     setSkipButtonEnabled(false);
     currentAudio = null;
 }
+async function loadHistory() {
+    try {
+        const turns = await chatAPI.getHistory();
+        for (const turn of turns) {
+            appendMessage(turn.content, turn.eventType === "user_message" ? "user" : "bot");
+        }
+    }
+    catch (err) {
+        // Puo' succedere al primissimo caricamento in background, prima che
+        // brain_service sia pronto: non e' un errore fatale, la finestra resta
+        // semplicemente vuota finche' non arriva il primo scambio reale.
+        console.warn("Impossibile caricare la cronologia (probabilmente brain_service non e' ancora pronto):", err);
+    }
+}
 function init() {
     const form = document.getElementById("chat-form");
     const input = document.getElementById("chat-input");
     const skipButton = document.getElementById("skip-button");
+    loadHistory();
     form.addEventListener("submit", async (event) => {
         event.preventDefault();
         const message = input.value.trim();
@@ -72,6 +87,12 @@ function init() {
         }
     });
     skipButton.addEventListener("click", () => skipAudio());
+    // Scambi innescati dalla voce: l'audio lo riproduce gia' l'avatar (vedi
+    // handleBrainEvent in index.ts), qui si mostra solo il testo.
+    chatAPI.onNewExchange(({ userMessage, reply }) => {
+        appendMessage(userMessage, "user");
+        appendMessage(reply, "bot");
+    });
     input.focus();
 }
 init();

@@ -1,5 +1,5 @@
 """
-Scheduler del dreaming: due modalita' complementari.
+Scheduler del dreaming: tre modalita' complementari.
 
 1. Cron-based (DREAMING_INTERVAL_CRON, di norma notturno): passata di
    consolidamento completa, pensata per girare quando la macchina e'
@@ -13,6 +13,14 @@ Scheduler del dreaming: due modalita' complementari.
    competere con la reattivita' della chat, perche' scatta solo quando la
    conversazione e' gia' in pausa (Ollama serve un solo modello alla volta,
    vedi architettura.md).
+3. Innescata dalla dimensione (check_size_trigger()): una conversazione
+   lunga e ininterrotta puo' non fermarsi mai abbastanza da far scattare il
+   punto 2. Se gli eventi non ancora consolidati superano una soglia, si
+   compatta subito, indipendentemente dall'inattivita' — altrimenti il
+   contesto mandato al modello crescerebbe senza limite (vedi
+   conversation/loop.py, che manda solo la coda recente, ma quella coda
+   diventerebbe via via piu' costosa da ricostruire e piu' lontana dal
+   riassunto semantico se non si consolida mai).
 
 Espone anche trigger_now() per un ciclo immediato fuori programma (usato
 dall'endpoint POST /dreaming/run, utile sia per i test sia per un eventuale
@@ -31,6 +39,7 @@ from croniter import croniter
 logger = logging.getLogger("brain")
 
 _IDLE_TRIGGER_SECONDS = 90.0
+_COMPACTION_EVENT_THRESHOLD = 40
 
 
 class DreamingScheduler:
@@ -66,16 +75,29 @@ class DreamingScheduler:
             self._idle_task.cancel()
         self._idle_task = asyncio.create_task(self._idle_wait())
 
+    def check_size_trigger(self, unconsolidated_count: int) -> None:
+        """Da chiamare subito dopo notify_activity() con il conteggio degli
+        eventi non ancora consolidati: se supera la soglia, sostituisce
+        l'attesa di inattivita' con un ciclo immediato."""
+        if unconsolidated_count < _COMPACTION_EVENT_THRESHOLD:
+            return
+        if self._idle_task is not None:
+            self._idle_task.cancel()
+        self._idle_task = asyncio.create_task(self._run_locked_and_log("di compattazione per dimensione"))
+
     async def _idle_wait(self) -> None:
         try:
             await asyncio.sleep(_IDLE_TRIGGER_SECONDS)
         except asyncio.CancelledError:
             return  # riavviato da un nuovo notify_activity(): questo giro non parte
+        await self._run_locked_and_log("innescato da inattivita'")
+
+    async def _run_locked_and_log(self, label: str) -> None:
         async with self._lock:
             try:
                 await self._run_cycle()
             except Exception:
-                logger.exception("Dreaming: ciclo innescato da inattivita' fallito")
+                logger.exception("Dreaming: ciclo %s fallito", label)
 
     async def _loop(self) -> None:
         while True:

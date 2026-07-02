@@ -38,12 +38,20 @@ export function createChatWindow(): BrowserWindow {
   return chatWindow;
 }
 
-export function showChatWindow(): void {
+export function showChatWindow(focus = true): void {
   if (!chatWindow) return;
   chatWindow.show();
-  chatWindow.focus();
+  if (focus) chatWindow.focus();
 }
 
 export function getChatWindow(): BrowserWindow | null {
   return chatWindow;
+}
+
+/** Aggiunge uno scambio (utente + risposta) alla finestra chat gia' aperta,
+ * usato per gli scambi innescati dalla voce: la chat testuale li mostra
+ * anche se non sono partiti da li', ma non ne riproduce l'audio (gia' fatto
+ * dall'avatar, vedi handleBrainEvent in index.ts). */
+export function notifyNewExchange(userMessage: string, reply: string): void {
+  chatWindow?.webContents.send("chat:new-exchange", { userMessage, reply });
 }

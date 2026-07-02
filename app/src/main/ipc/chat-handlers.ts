@@ -7,7 +7,7 @@
 
 import { ipcMain } from "electron";
 import { pathToFileURL } from "node:url";
-import { sendChatMessage } from "../clients/brain-client";
+import { getConversationHistory, sendChatMessage, type ConversationTurn } from "../clients/brain-client";
 import { flashReply, setAvatarState } from "../windows/avatar-window";
 
 export interface ChatIpcResult {
@@ -32,6 +32,16 @@ export function registerChatHandlers(): void {
     } catch (err) {
       setAvatarState("idle");
       throw err;
+    }
+  });
+
+  ipcMain.handle("chat:get-history", async (): Promise<ConversationTurn[]> => {
+    try {
+      return await getConversationHistory();
+    } catch {
+      // brain_service non ancora pronto (race di avvio, stessa logica gia'
+      // usata per il grafo): cronologia vuota, non un errore fatale.
+      return [];
     }
   });
 }

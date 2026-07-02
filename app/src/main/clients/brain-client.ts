@@ -75,3 +75,21 @@ export async function resetAllMemory(): Promise<{ status: string }> {
   }
   return (await res.json()) as { status: string };
 }
+
+export interface ConversationTurn {
+  id: number;
+  eventType: "user_message" | "bot_reply";
+  content: string;
+  createdAt: string;
+}
+
+export async function getConversationHistory(limit = 100): Promise<ConversationTurn[]> {
+  const res = await fetch(`${baseUrl()}/conversation/history?limit=${limit}`);
+  if (!res.ok) {
+    throw new Error(`brain /conversation/history ha risposto ${res.status}`);
+  }
+  const data = (await res.json()) as {
+    turns: { id: number; event_type: "user_message" | "bot_reply"; content: string; created_at: string }[];
+  };
+  return data.turns.map((t) => ({ id: t.id, eventType: t.event_type, content: t.content, createdAt: t.created_at }));
+}

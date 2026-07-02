@@ -27,8 +27,8 @@ import {
   setVoiceProcessing,
   showDreamingBubble,
 } from "./windows/avatar-window";
-import { createChatWindow } from "./windows/chat-window";
-import { createGraphWindow, notifyGraphUpdated } from "./windows/graph-window";
+import { createChatWindow, notifyNewExchange, showChatWindow } from "./windows/chat-window";
+import { createGraphWindow, notifyGraphUpdated, showGraphWindow } from "./windows/graph-window";
 import { showOnboardingWindow } from "./windows/onboarding-window";
 import { createSettingsWindow } from "./windows/settings-window";
 import { createTray } from "./tray";
@@ -76,6 +76,7 @@ function handleBrainEvent(event: BrainEvent): void {
       // brain a spingere l'evento (nessuno sta aspettando una risposta HTTP,
       // vedi stt_service/brain_client.py): stessa conversione audio_path ->
       // file://, ma la riproduzione avviene nella finestra avatar, non chat.
+      const userMessage = typeof event.user_message === "string" ? event.user_message : "";
       const reply = typeof event.reply === "string" ? event.reply : "";
       const audioPath = typeof event.audio_path === "string" ? event.audio_path : null;
       const durationSeconds = typeof event.duration_seconds === "number" ? event.duration_seconds : null;
@@ -83,6 +84,10 @@ function handleBrainEvent(event: BrainEvent): void {
       const bubbleDurationMs = durationSeconds ? durationSeconds * 1000 + 500 : undefined;
       const audioUrl = audioPath ? pathToFileURL(audioPath).href : null;
       flashReply(reply, usedMemory, bubbleDurationMs, audioUrl);
+      // La chat testuale mostra anche gli scambi partiti dalla voce (stessa
+      // conversazione, solo un altro modo di parlare), ma non ne riproduce
+      // l'audio: se lo facesse, suonerebbe due volte (gia' in corso sull'avatar).
+      if (userMessage) notifyNewExchange(userMessage, reply);
       break;
     }
     default:
@@ -123,6 +128,13 @@ app.whenReady().then(async () => {
   registerGraphHandlers();
   registerSettingsHandlers();
   registerAudioHandlers();
+
+  // Tutte e tre le finestre principali visibili di default (avatar, chat,
+  // cervellone): l'utente abbassa quella che non gli serve invece di doverle
+  // aprire a mano una per una. Senza foco all'avvio: non deve rubare
+  // l'attenzione da quello che l'utente stava gia' facendo.
+  showChatWindow(false);
+  showGraphWindow(false);
 
   setAvatarState("thinking");
   console.log("[main] avvio brain_service, tts_service e stt_service...");

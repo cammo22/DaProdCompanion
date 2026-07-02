@@ -12,12 +12,15 @@ import json
 import logging
 import sqlite3
 from collections.abc import Callable
+from pathlib import Path
 
 import httpx
+from companion_shared.sandbox import FilesystemGuard
 
 from ..graph.writer import find_or_create_edge, find_or_create_node
 from ..memory import episodic, semantic
 from ..memory.embeddings import generate_embedding
+from . import markdown_export
 
 logger = logging.getLogger("brain")
 
@@ -97,6 +100,8 @@ async def run_dreaming_cycle(
     brain_model_tag: str,
     embedding_model_tag: str,
     num_ctx: int,
+    guard: FilesystemGuard,
+    sandbox_root: Path,
     on_event: Callable[[str, dict], None] | None = None,
 ) -> int:
     """Esegue un ciclo di consolidamento. Restituisce il numero di episodi
@@ -170,6 +175,16 @@ async def run_dreaming_cycle(
             )
 
         episodic.mark_consolidated(conn, event_ids)
+
+        # Export in markdown in aggiunta a SQLite (non al posto): non deve
+        # far fallire il ciclo se scrivere su disco va storto, il
+        # consolidamento vero e proprio e' gia' andato a buon fine sopra.
+        try:
+            markdown_export.write_dream_summary(summary, guard=guard, sandbox_root=sandbox_root)
+            if graph_changed:
+                markdown_export.write_entity_files(conn, guard=guard, sandbox_root=sandbox_root)
+        except Exception:
+            logger.exception("Dreaming: export in markdown fallito, il consolidamento resta comunque valido")
 
         if graph_changed and on_event:
             on_event("graph-updated", {})

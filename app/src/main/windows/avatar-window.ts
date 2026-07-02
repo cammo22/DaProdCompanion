@@ -24,10 +24,10 @@ export function createAvatarWindow(): BrowserWindow {
   const { width, height } = screen.getPrimaryDisplay().workAreaSize;
 
   avatarWindow = new BrowserWindow({
-    width: 420,
-    height: 420,
-    x: width - 440,
-    y: height - 460,
+    width: 480,
+    height: 760,
+    x: width - 500,
+    y: Math.max(0, height - 800), // su schermi bassi non deve finire sopra il bordo superiore
     frame: false,
     transparent: true,
     alwaysOnTop: true,

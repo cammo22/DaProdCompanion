@@ -26,9 +26,12 @@ from ..dreaming.consolidation import run_dreaming_cycle
 from ..dreaming.scheduler import DreamingScheduler
 from ..events.bus import EventBus
 from ..graph.snapshot import get_graph_snapshot
+from ..memory import episodic
 from .schemas import (
     ChatRequest,
     ChatResponse,
+    ConversationHistoryResponse,
+    ConversationTurnOut,
     DreamingRunResponse,
     GraphSnapshotResponse,
     HealthResponse,
@@ -66,6 +69,8 @@ async def lifespan(app: FastAPI):
             brain_model_tag=settings.brain_model_tag,
             embedding_model_tag=settings.embedding_model_tag,
             num_ctx=settings.brain_model_num_ctx,
+            guard=guard,
+            sandbox_root=sandbox_root,
             on_event=event_bus.publish,
         )
 
@@ -136,12 +141,19 @@ async def chat(request: ChatRequest) -> ChatResponse:
     # Rimanda il consolidamento "a caldo" (vedi DreamingScheduler.notify_activity):
     # cosi' il grafo/la memoria semantica si aggiornano a ridosso della
     # conversazione reale una volta che si ferma, non solo al giro notturno.
-    app.state.dreaming_scheduler.notify_activity()
+    scheduler: DreamingScheduler = app.state.dreaming_scheduler
+    scheduler.notify_activity()
+    # Una conversazione lunga e ininterrotta potrebbe non fermarsi mai
+    # abbastanza da far scattare l'inattivita': se gli eventi non consolidati
+    # sono troppi, si compatta comunque subito (vedi scheduler.py).
+    unconsolidated_count = len(episodic.get_unconsolidated_events(app.state.conn, limit=200))
+    scheduler.check_size_trigger(unconsolidated_count)
 
     if is_voice:
         app.state.event_bus.publish(
             "voice-reply",
             {
+                "user_message": request.message,
                 "reply": result.reply,
                 "audio_path": result.audio_path,
                 "duration_seconds": result.duration_seconds,
@@ -181,6 +193,21 @@ async def graph_snapshot() -> GraphSnapshotResponse:
     primo caricamento e ogni volta che riceve un evento 'graph-updated'."""
     nodes, edges = get_graph_snapshot(app.state.conn)
     return GraphSnapshotResponse(nodes=nodes, edges=edges)
+
+
+@app.get("/conversation/history", response_model=ConversationHistoryResponse)
+async def conversation_history(limit: int = 100) -> ConversationHistoryResponse:
+    """Cronologia reale della conversazione (testo e voce insieme, sono lo
+    stesso flusso in episodic_events), usata dalla finestra chat per mostrare
+    lo storico vero invece di partire vuota ad ogni apertura."""
+    events = episodic.get_recent_events(app.state.conn, limit=limit)
+    ordered = list(reversed(events))  # get_recent_events e' piu' recenti prima, qui serve cronologico
+    turns = [
+        ConversationTurnOut(id=e["id"], event_type=e["event_type"], content=e["content"], created_at=e["created_at"])
+        for e in ordered
+        if e["event_type"] in ("user_message", "bot_reply")
+    ]
+    return ConversationHistoryResponse(turns=turns)
 
 
 @app.post("/admin/reset")

@@ -4,10 +4,24 @@
  */
 export {};
 
+interface ConversationTurn {
+  id: number;
+  eventType: "user_message" | "bot_reply";
+  content: string;
+  createdAt: string;
+}
+
+interface NewExchangePayload {
+  userMessage: string;
+  reply: string;
+}
+
 declare const chatAPI: {
   sendMessage(message: string): Promise<{ reply: string; audioUrl: string | null }>;
   notifySpeakingStart(): void;
   notifySpeakingEnd(): void;
+  getHistory(): Promise<ConversationTurn[]>;
+  onNewExchange(callback: (payload: NewExchangePayload) => void): void;
 };
 
 let currentAudio: HTMLAudioElement | null = null;
@@ -58,10 +72,26 @@ function skipAudio(): void {
   currentAudio = null;
 }
 
+async function loadHistory(): Promise<void> {
+  try {
+    const turns = await chatAPI.getHistory();
+    for (const turn of turns) {
+      appendMessage(turn.content, turn.eventType === "user_message" ? "user" : "bot");
+    }
+  } catch (err) {
+    // Puo' succedere al primissimo caricamento in background, prima che
+    // brain_service sia pronto: non e' un errore fatale, la finestra resta
+    // semplicemente vuota finche' non arriva il primo scambio reale.
+    console.warn("Impossibile caricare la cronologia (probabilmente brain_service non e' ancora pronto):", err);
+  }
+}
+
 function init(): void {
   const form = document.getElementById("chat-form") as HTMLFormElement;
   const input = document.getElementById("chat-input") as HTMLInputElement;
   const skipButton = document.getElementById("skip-button") as HTMLButtonElement;
+
+  loadHistory();
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -85,6 +115,13 @@ function init(): void {
   });
 
   skipButton.addEventListener("click", () => skipAudio());
+
+  // Scambi innescati dalla voce: l'audio lo riproduce gia' l'avatar (vedi
+  // handleBrainEvent in index.ts), qui si mostra solo il testo.
+  chatAPI.onNewExchange(({ userMessage, reply }) => {
+    appendMessage(userMessage, "user");
+    appendMessage(reply, "bot");
+  });
 
   input.focus();
 }

@@ -52,3 +52,14 @@ class GraphEdgeOut(BaseModel):
 class GraphSnapshotResponse(BaseModel):
     nodes: list[GraphNodeOut]
     edges: list[GraphEdgeOut]
+
+
+class ConversationTurnOut(BaseModel):
+    id: int
+    event_type: Literal["user_message", "bot_reply"]
+    content: str
+    created_at: str
+
+
+class ConversationHistoryResponse(BaseModel):
+    turns: list[ConversationTurnOut]

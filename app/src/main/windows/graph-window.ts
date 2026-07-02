@@ -37,10 +37,10 @@ export function createGraphWindow(): BrowserWindow {
   return graphWindow;
 }
 
-export function showGraphWindow(): void {
+export function showGraphWindow(focus = true): void {
   if (!graphWindow) return;
   graphWindow.show();
-  graphWindow.focus();
+  if (focus) graphWindow.focus();
   // Riaggiorna sempre all'apertura: il primissimo caricamento in background
   // (all'avvio dell'app, finestra ancora nascosta) puo' capitare prima che
   // brain_service sia pronto e fallire silenziosamente — riaprire il
