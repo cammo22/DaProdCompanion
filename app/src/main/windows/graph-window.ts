@@ -52,6 +52,10 @@ export function notifyGraphUpdated(): void {
   graphWindow?.webContents.send("graph:updated");
 }
 
+export function notifyQuantumStatusChanged(): void {
+  graphWindow?.webContents.send("graph:quantum-status-changed");
+}
+
 export function getGraphWindow(): BrowserWindow | null {
   return graphWindow;
 }

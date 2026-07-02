@@ -74,3 +74,8 @@ class ConversationHistoryResponse(BaseModel):
 class DreamingStatusResponse(BaseModel):
     last_dream_at: str | None
     next_scheduled_at: str | None
+
+
+class QuantumStatusResponse(BaseModel):
+    active: bool
+    iterations_done: int

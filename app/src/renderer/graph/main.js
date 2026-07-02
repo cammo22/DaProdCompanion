@@ -201,14 +201,63 @@ async function refreshDreamTimer() {
         console.warn("Impossibile leggere lo stato del dreaming:", err);
     }
 }
+async function refreshQuantumStatus() {
+    const button = document.getElementById("quantum-button");
+    const statusEl = document.getElementById("quantum-status");
+    if (!button || !statusEl)
+        return;
+    try {
+        const status = await graphAPI.getQuantumStatus();
+        button.textContent = status.active ? "Ferma Quantum" : "Modalita' Quantum";
+        button.classList.toggle("active", status.active);
+        statusEl.classList.toggle("hidden", !status.active);
+        if (status.active) {
+            statusEl.textContent = `Attiva — iterazione ${status.iterationsDone}. Ascolto e sogni normali sono in pausa.`;
+        }
+    }
+    catch (err) {
+        console.warn("Impossibile leggere lo stato della modalita' Quantum:", err);
+    }
+}
+function initQuantumButton() {
+    const button = document.getElementById("quantum-button");
+    if (!button)
+        return;
+    button.addEventListener("click", async () => {
+        button.disabled = true;
+        try {
+            const current = await graphAPI.getQuantumStatus();
+            if (current.active) {
+                await graphAPI.stopQuantum();
+            }
+            else {
+                await graphAPI.startQuantum();
+            }
+        }
+        catch (err) {
+            console.error("Impossibile cambiare stato della modalita' Quantum:", err);
+        }
+        finally {
+            button.disabled = false;
+            await refreshQuantumStatus();
+        }
+    });
+}
 function init() {
     loadAndRender();
     graphAPI.onUpdated(() => loadAndRender());
     initRefreshButton();
     initMinConnectionsSlider();
     initRepulsionSlider();
+    initQuantumButton();
     refreshDreamTimer();
     setInterval(refreshDreamTimer, 60_000);
+    refreshQuantumStatus();
+    graphAPI.onQuantumStatusChanged(() => refreshQuantumStatus());
+    // Fallback a intervalli mentre e' attiva: gli eventi push coprono
+    // avvio/fine, ma il contatore delle iterazioni cresce silenziosamente nel
+    // mezzo senza un evento dedicato per ognuna.
+    setInterval(refreshQuantumStatus, 5_000);
     document.getElementById("node-detail-close")?.addEventListener("click", () => hideNodeDetail());
     window.addEventListener("resize", () => {
         const container = document.getElementById("graph-container");

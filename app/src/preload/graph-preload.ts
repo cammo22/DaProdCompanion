@@ -5,6 +5,11 @@ export interface DreamingStatus {
   nextScheduledAt: string | null;
 }
 
+export interface QuantumStatus {
+  active: boolean;
+  iterationsDone: number;
+}
+
 contextBridge.exposeInMainWorld("graphAPI", {
   getSnapshot: () => ipcRenderer.invoke("graph:get-snapshot"),
   onUpdated: (callback: () => void): void => {
@@ -12,4 +17,10 @@ contextBridge.exposeInMainWorld("graphAPI", {
   },
   triggerNow: (): Promise<{ consolidated_events: number }> => ipcRenderer.invoke("graph:trigger-now"),
   getDreamingStatus: (): Promise<DreamingStatus> => ipcRenderer.invoke("graph:get-dreaming-status"),
+  startQuantum: (): Promise<QuantumStatus> => ipcRenderer.invoke("graph:start-quantum"),
+  stopQuantum: (): Promise<QuantumStatus> => ipcRenderer.invoke("graph:stop-quantum"),
+  getQuantumStatus: (): Promise<QuantumStatus> => ipcRenderer.invoke("graph:get-quantum-status"),
+  onQuantumStatusChanged: (callback: () => void): void => {
+    ipcRenderer.on("graph:quantum-status-changed", () => callback());
+  },
 });

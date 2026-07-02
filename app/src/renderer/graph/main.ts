@@ -37,11 +37,20 @@ interface DreamingStatus {
   nextScheduledAt: string | null;
 }
 
+interface QuantumStatus {
+  active: boolean;
+  iterationsDone: number;
+}
+
 declare const graphAPI: {
   getSnapshot(): Promise<GraphSnapshot>;
   onUpdated(callback: () => void): void;
   triggerNow(): Promise<{ consolidated_events: number }>;
   getDreamingStatus(): Promise<DreamingStatus>;
+  startQuantum(): Promise<QuantumStatus>;
+  stopQuantum(): Promise<QuantumStatus>;
+  getQuantumStatus(): Promise<QuantumStatus>;
+  onQuantumStatusChanged(callback: () => void): void;
 };
 
 interface D3Force {
@@ -283,15 +292,62 @@ async function refreshDreamTimer(): Promise<void> {
   }
 }
 
+async function refreshQuantumStatus(): Promise<void> {
+  const button = document.getElementById("quantum-button") as HTMLButtonElement | null;
+  const statusEl = document.getElementById("quantum-status");
+  if (!button || !statusEl) return;
+  try {
+    const status = await graphAPI.getQuantumStatus();
+    button.textContent = status.active ? "Ferma Quantum" : "Modalita' Quantum";
+    button.classList.toggle("active", status.active);
+    statusEl.classList.toggle("hidden", !status.active);
+    if (status.active) {
+      statusEl.textContent = `Attiva — iterazione ${status.iterationsDone}. Ascolto e sogni normali sono in pausa.`;
+    }
+  } catch (err) {
+    console.warn("Impossibile leggere lo stato della modalita' Quantum:", err);
+  }
+}
+
+function initQuantumButton(): void {
+  const button = document.getElementById("quantum-button") as HTMLButtonElement | null;
+  if (!button) return;
+
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    try {
+      const current = await graphAPI.getQuantumStatus();
+      if (current.active) {
+        await graphAPI.stopQuantum();
+      } else {
+        await graphAPI.startQuantum();
+      }
+    } catch (err) {
+      console.error("Impossibile cambiare stato della modalita' Quantum:", err);
+    } finally {
+      button.disabled = false;
+      await refreshQuantumStatus();
+    }
+  });
+}
+
 function init(): void {
   loadAndRender();
   graphAPI.onUpdated(() => loadAndRender());
   initRefreshButton();
   initMinConnectionsSlider();
   initRepulsionSlider();
+  initQuantumButton();
 
   refreshDreamTimer();
   setInterval(refreshDreamTimer, 60_000);
+
+  refreshQuantumStatus();
+  graphAPI.onQuantumStatusChanged(() => refreshQuantumStatus());
+  // Fallback a intervalli mentre e' attiva: gli eventi push coprono
+  // avvio/fine, ma il contatore delle iterazioni cresce silenziosamente nel
+  // mezzo senza un evento dedicato per ognuna.
+  setInterval(refreshQuantumStatus, 5_000);
 
   document.getElementById("node-detail-close")?.addEventListener("click", () => hideNodeDetail());
 

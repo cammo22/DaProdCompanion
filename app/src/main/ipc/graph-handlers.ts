@@ -2,13 +2,18 @@ import { ipcMain } from "electron";
 import {
   getDreamingStatus,
   getGraphSnapshot,
+  getQuantumStatus,
+  startQuantumMode,
+  stopQuantumMode,
   triggerDreaming,
   type DreamingStatus,
   type GraphSnapshot,
+  type QuantumStatus,
 } from "../clients/brain-client";
 
 const EMPTY_SNAPSHOT: GraphSnapshot = { nodes: [], edges: [] };
 const EMPTY_STATUS: DreamingStatus = { lastDreamAt: null, nextScheduledAt: null };
+const EMPTY_QUANTUM_STATUS: QuantumStatus = { active: false, iterationsDone: 0 };
 
 export function registerGraphHandlers(): void {
   ipcMain.handle("graph:get-snapshot", async () => {
@@ -30,6 +35,16 @@ export function registerGraphHandlers(): void {
       return await getDreamingStatus();
     } catch {
       return EMPTY_STATUS;
+    }
+  });
+
+  ipcMain.handle("graph:start-quantum", () => startQuantumMode());
+  ipcMain.handle("graph:stop-quantum", () => stopQuantumMode());
+  ipcMain.handle("graph:get-quantum-status", async () => {
+    try {
+      return await getQuantumStatus();
+    } catch {
+      return EMPTY_QUANTUM_STATUS;
     }
   });
 }

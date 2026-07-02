@@ -29,7 +29,7 @@ import {
   showDreamingBubble,
 } from "./windows/avatar-window";
 import { createChatWindow, notifyNewExchange, showChatWindow } from "./windows/chat-window";
-import { createGraphWindow, notifyGraphUpdated, showGraphWindow } from "./windows/graph-window";
+import { createGraphWindow, notifyGraphUpdated, notifyQuantumStatusChanged, showGraphWindow } from "./windows/graph-window";
 import { showOnboardingWindow } from "./windows/onboarding-window";
 import { createSettingsWindow } from "./windows/settings-window";
 import { createTray } from "./tray";
@@ -117,6 +117,10 @@ function handleBrainEvent(event: BrainEvent): void {
       if (userMessage) notifyNewExchange(userMessage, reply);
       break;
     }
+    case "quantum-started":
+    case "quantum-finished":
+      notifyQuantumStatusChanged();
+      break;
     default:
       break;
   }

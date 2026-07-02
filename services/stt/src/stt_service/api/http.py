@@ -48,19 +48,20 @@ class MicMuteState:
     bool locale nel lifespan non sarebbe raggiungibile dagli handler HTTP,
     definiti come funzioni a modulo separate che vedono solo app.state.
 
-    Due cause di mute separate e indipendenti, non un unico bool: se fossero
-    lo stesso flag, un mute automatico durante la riproduzione TTS potrebbe
-    riattivare per sbaglio il microfono che l'utente aveva mutato lui stesso
-    a mano (o viceversa, restare mutato dopo la riproduzione se l'utente
-    aveva smutato nel frattempo). 'muted' e' vero se una delle due lo e'."""
+    Tre cause di mute separate e indipendenti, non un unico bool: se fossero
+    lo stesso flag, un mute automatico durante la riproduzione TTS (o durante
+    la modalita' Quantum) potrebbe riattivare per sbaglio il microfono che
+    l'utente aveva mutato lui stesso a mano (o viceversa). 'muted' e' vero se
+    una qualunque delle tre lo e'."""
 
     def __init__(self) -> None:
         self.manual_muted = False
         self.speaking_muted = False
+        self.quantum_muted = False
 
     @property
     def muted(self) -> bool:
-        return self.manual_muted or self.speaking_muted
+        return self.manual_muted or self.speaking_muted or self.quantum_muted
 
 
 @asynccontextmanager
@@ -177,6 +178,15 @@ async def speaking_mute(request: SpeakingMuteRequest) -> MuteStateResponse:
     contiene il nome del bot)."""
     state: MicMuteState = app.state.mute_state
     state.speaking_muted = request.muted
+    return MuteStateResponse(muted=state.muted)
+
+
+@app.post("/mic/quantum-mute", response_model=MuteStateResponse)
+async def quantum_mute(request: SpeakingMuteRequest) -> MuteStateResponse:
+    """Chiamato da brain_service all'avvio/fine della modalita' Quantum: come
+    speaking-mute, ma per un motivo diverso (vedi MicMuteState)."""
+    state: MicMuteState = app.state.mute_state
+    state.quantum_muted = request.muted
     return MuteStateResponse(muted=state.muted)
 
 

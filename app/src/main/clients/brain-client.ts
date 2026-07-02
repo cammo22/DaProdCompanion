@@ -107,3 +107,36 @@ export async function getDreamingStatus(): Promise<DreamingStatus> {
   const data = (await res.json()) as { last_dream_at: string | null; next_scheduled_at: string | null };
   return { lastDreamAt: data.last_dream_at, nextScheduledAt: data.next_scheduled_at };
 }
+
+export interface QuantumStatus {
+  active: boolean;
+  iterationsDone: number;
+}
+
+function parseQuantumStatus(data: { active: boolean; iterations_done: number }): QuantumStatus {
+  return { active: data.active, iterationsDone: data.iterations_done };
+}
+
+export async function startQuantumMode(): Promise<QuantumStatus> {
+  const res = await fetch(`${baseUrl()}/quantum/start`, { method: "POST" });
+  if (!res.ok) {
+    throw new Error(`brain /quantum/start ha risposto ${res.status}`);
+  }
+  return parseQuantumStatus((await res.json()) as { active: boolean; iterations_done: number });
+}
+
+export async function stopQuantumMode(): Promise<QuantumStatus> {
+  const res = await fetch(`${baseUrl()}/quantum/stop`, { method: "POST" });
+  if (!res.ok) {
+    throw new Error(`brain /quantum/stop ha risposto ${res.status}`);
+  }
+  return parseQuantumStatus((await res.json()) as { active: boolean; iterations_done: number });
+}
+
+export async function getQuantumStatus(): Promise<QuantumStatus> {
+  const res = await fetch(`${baseUrl()}/quantum/status`);
+  if (!res.ok) {
+    throw new Error(`brain /quantum/status ha risposto ${res.status}`);
+  }
+  return parseQuantumStatus((await res.json()) as { active: boolean; iterations_done: number });
+}

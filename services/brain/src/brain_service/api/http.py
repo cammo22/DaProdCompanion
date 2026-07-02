@@ -21,12 +21,14 @@ from fastapi import FastAPI, HTTPException
 from ..admin.reset import reset_all_memory
 from ..conversation.loop import handle_user_message
 from ..conversation.ollama_client import OllamaClient
+from ..conversation.stt_client import SttClient
 from ..conversation.tts_client import TtsClient
 from ..dreaming.consolidation import run_dreaming_cycle
 from ..dreaming.scheduler import DreamingScheduler
 from ..events.bus import EventBus
 from ..graph.snapshot import get_graph_snapshot
 from ..memory import episodic
+from ..quantum.mode import QuantumMode
 from .schemas import (
     ChatRequest,
     ChatResponse,
@@ -36,6 +38,7 @@ from .schemas import (
     DreamingStatusResponse,
     GraphSnapshotResponse,
     HealthResponse,
+    QuantumStatusResponse,
     VoiceEventRequest,
 )
 from .ws import router as ws_router
@@ -61,6 +64,7 @@ async def lifespan(app: FastAPI):
 
     ollama = OllamaClient(settings.ollama_host)
     tts = TtsClient(f"http://127.0.0.1:{settings.tts_http_port}")
+    stt = SttClient(f"http://127.0.0.1:{settings.stt_http_port}")
     event_bus = EventBus()
 
     async def _dreaming_cycle() -> int:
@@ -72,6 +76,7 @@ async def lifespan(app: FastAPI):
             num_ctx=settings.brain_model_num_ctx,
             guard=guard,
             sandbox_root=sandbox_root,
+            bot_name=settings.bot_name,
             tts=tts,
             on_event=event_bus.publish,
         )
@@ -79,22 +84,38 @@ async def lifespan(app: FastAPI):
     dreaming_scheduler = DreamingScheduler(settings.dreaming_interval_cron, _dreaming_cycle)
     dreaming_scheduler.start()
 
+    quantum_mode = QuantumMode(
+        conn=conn,
+        ollama_host=settings.ollama_host,
+        brain_model_tag=settings.brain_model_tag,
+        num_ctx=settings.brain_model_num_ctx,
+        guard=guard,
+        sandbox_root=sandbox_root,
+        dreaming_scheduler=dreaming_scheduler,
+        stt=stt,
+        on_event=event_bus.publish,
+    )
+
     app.state.settings = settings
     app.state.conn = conn
     app.state.ollama = ollama
     app.state.tts = tts
+    app.state.stt = stt
     app.state.guard = guard
     app.state.logger = app_logger
     app.state.dreaming_scheduler = dreaming_scheduler
+    app.state.quantum_mode = quantum_mode
     app.state.event_bus = event_bus
 
     app_logger.info("brain_service pronto: bot_name=%s sandbox_root=%s", settings.bot_name, sandbox_root)
 
     yield
 
+    await quantum_mode.stop()
     dreaming_scheduler.stop()
     await ollama.aclose()
     await tts.aclose()
+    await stt.aclose()
     audit_log.detach_db_sink()
     conn.close()
 
@@ -113,6 +134,14 @@ async def health() -> HealthResponse:
 async def chat(request: ChatRequest) -> ChatResponse:
     if not request.message.strip():
         raise HTTPException(status_code=400, detail="Il messaggio non puo' essere vuoto")
+
+    quantum_mode: QuantumMode = app.state.quantum_mode
+    if quantum_mode.is_active():
+        # Mentre la modalita' Quantum e' attiva il companion "non fa altro":
+        # niente chiamata al modello, una risposta di cortesia fissa e basta
+        # (il microfono e' gia' mutato lato stt, ma la chat testuale resta
+        # comunque raggiungibile, quindi va gestita anche qui).
+        return ChatResponse(reply="Sto rielaborando i miei ricordi, un attimo di pazienza...", used_memory=False)
 
     # La chat testuale riceve gia' la risposta nel valore HTTP di ritorno
     # (Electron aggiorna l'avatar da li'). Chi parla non e' in ascolto di
@@ -206,6 +235,26 @@ async def dreaming_status() -> DreamingStatusResponse:
     scheduler: DreamingScheduler = app.state.dreaming_scheduler
     status = scheduler.status()
     return DreamingStatusResponse(**status)
+
+
+@app.post("/quantum/start", response_model=QuantumStatusResponse)
+async def quantum_start() -> QuantumStatusResponse:
+    quantum_mode: QuantumMode = app.state.quantum_mode
+    await quantum_mode.start()
+    return QuantumStatusResponse(**quantum_mode.status())
+
+
+@app.post("/quantum/stop", response_model=QuantumStatusResponse)
+async def quantum_stop() -> QuantumStatusResponse:
+    quantum_mode: QuantumMode = app.state.quantum_mode
+    await quantum_mode.stop()
+    return QuantumStatusResponse(**quantum_mode.status())
+
+
+@app.get("/quantum/status", response_model=QuantumStatusResponse)
+async def quantum_status() -> QuantumStatusResponse:
+    quantum_mode: QuantumMode = app.state.quantum_mode
+    return QuantumStatusResponse(**quantum_mode.status())
 
 
 @app.get("/graph/snapshot", response_model=GraphSnapshotResponse)
