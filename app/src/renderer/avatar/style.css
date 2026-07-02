@@ -350,9 +350,10 @@ html, body {
   transform: scale(1.08);
 }
 
-.mic-mute-button.muted {
-  background: rgba(220, 60, 60, 0.75);
-  opacity: 0.95;
+#mic-mute-button.muted {
+  background: rgba(220, 60, 60, 0.85);
+  opacity: 1;
+  box-shadow: 0 0 10px rgba(220, 60, 60, 0.7);
 }
 
 .record-button.recording {
