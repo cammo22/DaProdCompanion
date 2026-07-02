@@ -17,6 +17,7 @@ from ..memory import episodic, semantic
 from .ollama_client import OllamaClient
 from .prompt_templates import build_system_prompt
 from .text_sanitize import correct_bot_name, prepare_for_speech
+from .tools import run_chat_with_tools
 from .tts_client import TtsClient
 
 logger = logging.getLogger("brain")
@@ -85,10 +86,13 @@ async def handle_user_message(
 
     episodic.log_event(conn, event_type="user_message", content=user_message, source="brain")
 
-    reply = await ollama.chat(
+    reply = await run_chat_with_tools(
+        ollama=ollama,
         model=settings.brain_model_tag,
         messages=messages,
         num_ctx=settings.brain_model_num_ctx,
+        conn=conn,
+        embedding_model=settings.embedding_model_tag,
     )
     reply = correct_bot_name(reply, settings.bot_name)
 
