@@ -1,0 +1,219 @@
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  -webkit-app-region: drag;
+  font-family: "Segoe UI", sans-serif;
+  user-select: none;
+}
+
+.avatar {
+  position: relative;
+  width: 140px;
+  height: 140px;
+  margin: 250px auto 0;
+  -webkit-app-region: no-drag;
+  cursor: pointer;
+}
+
+.avatar-core {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #8ab4ff, #4a5cff 65%, #2f3bb0);
+  box-shadow: 0 0 34px rgba(74, 92, 255, 0.5);
+  transition: background 0.4s ease;
+  animation: idle-pulse 3.5s ease-in-out infinite;
+}
+
+.avatar[data-state="listening"] .avatar-core {
+  background: radial-gradient(circle at 35% 30%, #8af5ff, #34d4e8 65%, #1c7f8c);
+  box-shadow: 0 0 30px rgba(52, 212, 232, 0.55);
+  animation: listening-bounce 0.6s ease-in-out infinite;
+}
+
+.avatar[data-state="thinking"] .avatar-core {
+  background: radial-gradient(circle at 35% 30%, #ffd98a, #ffab4a 65%, #b06a2f);
+  animation: thinking-pulse 0.9s ease-in-out infinite;
+}
+
+.avatar[data-state="speaking"] .avatar-core {
+  background: radial-gradient(circle at 35% 30%, #8affb0, #4affa0 65%, #2fb06a);
+  animation: speaking-bounce 0.5s ease-in-out infinite;
+}
+
+.avatar[data-state="dreaming"] .avatar-core {
+  background: radial-gradient(circle at 35% 30%, #d9b3ff, #9b5cff 65%, #5a2fb0);
+  box-shadow: 0 0 40px rgba(155, 92, 255, 0.6);
+  animation: dreaming-drift 4s ease-in-out infinite;
+}
+
+/* Anello "radar" attorno al blob: visibile solo mentre ascolta, per dare
+   la sensazione che il microfono stia davvero captando qualcosa. */
+.avatar-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.avatar[data-state="listening"] .avatar-ring::before,
+.avatar[data-state="listening"] .avatar-ring::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 3px solid #4fe0f2;
+  animation: listening-ping 1.6s ease-out infinite;
+}
+
+.avatar[data-state="listening"] .avatar-ring::after {
+  animation-delay: 0.8s;
+}
+
+/* Barrette stile equalizzatore: visibili solo mentre parla, per suggerire
+   "sto dicendo qualcosa" oltre al solo colore del blob. */
+.avatar-bars {
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 18px;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  pointer-events: none;
+}
+
+.avatar-bars span {
+  width: 4px;
+  height: 100%;
+  border-radius: 2px;
+  background: #baffd6;
+  box-shadow: 0 0 6px rgba(74, 255, 160, 0.7);
+  transform-origin: bottom;
+}
+
+.avatar[data-state="speaking"] .avatar-bars {
+  opacity: 1;
+}
+
+.avatar[data-state="speaking"] .avatar-bars span {
+  animation: speaking-bar 0.7s ease-in-out infinite;
+}
+
+.avatar-bars span:nth-child(1) { animation-delay: 0s; }
+.avatar-bars span:nth-child(2) { animation-delay: 0.1s; }
+.avatar-bars span:nth-child(3) { animation-delay: 0.2s; }
+.avatar-bars span:nth-child(4) { animation-delay: 0.1s; }
+.avatar-bars span:nth-child(5) { animation-delay: 0s; }
+
+@keyframes idle-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.04); }
+}
+
+@keyframes listening-bounce {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+@keyframes listening-ping {
+  0% { transform: scale(0.85); opacity: 0.8; }
+  100% { transform: scale(1.45); opacity: 0; }
+}
+
+@keyframes thinking-pulse {
+  0%, 100% { transform: scale(0.96) rotate(0deg); }
+  33% { transform: scale(1.05) rotate(-4deg); }
+  66% { transform: scale(1.05) rotate(4deg); }
+}
+
+@keyframes speaking-bounce {
+  0%, 100% { transform: scale(1) translateY(0); }
+  50% { transform: scale(1.03) translateY(-4px); }
+}
+
+@keyframes speaking-bar {
+  0%, 100% { transform: scaleY(0.35); }
+  50% { transform: scaleY(1); }
+}
+
+@keyframes dreaming-drift {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  50% { transform: scale(1.06) rotate(3deg); }
+}
+
+.bubble {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  min-height: 60px;
+  max-height: 230px;
+  overflow-y: auto;
+  background: rgba(255, 255, 255, 0.97);
+  border-radius: 14px;
+  padding: 14px 16px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: #222;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  -webkit-app-region: no-drag;
+  transition: opacity 0.3s ease;
+}
+
+.bubble.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.bubble-badge {
+  display: inline-block;
+  font-size: 16px;
+  margin-bottom: 6px;
+}
+
+.bubble-badge.hidden {
+  display: none;
+}
+
+.bubble-text {
+  white-space: pre-wrap;
+}
+
+.mic-mute-button {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(20, 20, 30, 0.45);
+  color: #fff;
+  font-size: 16px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.2s ease, background 0.2s ease;
+  -webkit-app-region: no-drag;
+}
+
+.mic-mute-button:hover {
+  opacity: 1;
+}
+
+.mic-mute-button.muted {
+  background: rgba(220, 60, 60, 0.75);
+  opacity: 0.9;
+}

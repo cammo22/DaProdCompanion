@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8" />
+<title>Cervellone</title>
+<link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div id="graph-container"></div>
+  <div id="node-detail" class="node-detail hidden">
+    <button id="node-detail-close" class="node-detail-close" title="Chiudi">✕</button>
+    <h2 id="node-detail-title"></h2>
+    <div id="node-detail-type" class="node-detail-type"></div>
+    <h3>Connessioni</h3>
+    <ul id="node-detail-connections"></ul>
+  </div>
+  <script src="../../../node_modules/force-graph/dist/force-graph.js"></script>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

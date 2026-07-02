@@ -1,0 +1,18 @@
+[project]
+name = "daprodcompanion"
+version = "0.1.0"
+description = "Companion AI desktop 100% locale (workspace root, nessun codice proprio)"
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = [
+    "shared",
+    "services/brain",
+    "services/tts",
+    "services/stt",
+    # "services/webcam" viene aggiunto in Fase 4
+]

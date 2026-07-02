@@ -1,0 +1,25 @@
+{
+  "name": "daprodcompanion-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Avatar desktop Electron del companion (overlay + chat)",
+  "main": "out/main/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.main.json && tsc -p tsconfig.renderer.json",
+    "start": "npm run build && electron ."
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "force-graph": "^1.51.4",
+    "ws": "^8.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/ws": "^8.18.1",
+    "electron": "^33.2.0",
+    "typescript": "^5.7.2"
+  },
+  "allowScripts": {
+    "electron@33.4.11": true
+  }
+}

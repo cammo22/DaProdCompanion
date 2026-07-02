@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Node / Electron (in arrivo dalla Fase 2)
+node_modules/
+app/dist/
+app/out/
+app/.vite/
+
+# Configurazione locale (contiene il nome del bot e altri valori specifici della macchina)
+.env
+
+# Log eventuali finiti per errore nel repo (i log reali vivono sotto SANDBOX_ROOT, fuori dal repo)
+*.log
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Editor
+.vscode/
+.idea/

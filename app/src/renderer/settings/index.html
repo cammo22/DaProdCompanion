@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8" />
+<title>Impostazioni</title>
+<link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <form id="settings-form">
+    <h1>Impostazioni</h1>
+
+    <label for="bot-name">Nome del companion</label>
+    <input id="bot-name" type="text" maxlength="40" required />
+
+    <label for="model-tag">Modello Ollama (cervello)</label>
+    <input id="model-tag" type="text" required />
+
+    <label for="tts-voice">Voce TTS</label>
+    <select id="tts-voice">
+      <option value="if_sara">Italiana femminile (if_sara)</option>
+      <option value="im_nicola">Italiana maschile (im_nicola)</option>
+    </select>
+
+    <label for="tts-speed">Velocita' voce (1.0 = normale)</label>
+    <input id="tts-speed" type="number" min="0.5" max="2.0" step="0.05" required />
+
+    <label for="mic-device">Microfono</label>
+    <select id="mic-device">
+      <option value="">Predefinito di sistema</option>
+    </select>
+
+    <button type="submit">Salva</button>
+    <p id="save-message" class="save-message hidden">
+      Salvato. Le modifiche richiedono un riavvio dell'app.
+      <button type="button" id="restart-button">Riavvia ora</button>
+    </p>
+  </form>
+
+  <hr />
+
+  <div id="reset-section">
+    <h2>Zona pericolosa</h2>
+    <p>
+      Cancella tutta la memoria del companion: conversazioni, ricordi consolidati e grafo di
+      conoscenza. Non e' reversibile.
+    </p>
+    <label for="reset-confirm">Scrivi RESET per abilitare il pulsante</label>
+    <input id="reset-confirm" type="text" autocomplete="off" />
+    <button type="button" id="reset-button" disabled>Resetta tutta la memoria</button>
+    <p id="reset-message" class="reset-message hidden"></p>
+  </div>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

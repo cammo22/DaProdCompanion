@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8" />
+<title>Avatar</title>
+<link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div id="bubble" class="bubble hidden">
+    <div id="bubble-badge" class="bubble-badge hidden" title="Ha usato la memoria">🧠</div>
+    <div id="bubble-text" class="bubble-text"></div>
+  </div>
+  <div id="avatar" class="avatar" data-state="idle" title="Clicca per aprire la chat">
+    <div class="avatar-ring"></div>
+    <div class="avatar-core"></div>
+    <div class="avatar-bars" aria-hidden="true">
+      <span></span><span></span><span></span><span></span><span></span>
+    </div>
+  </div>
+  <button id="mic-mute-button" class="mic-mute-button" type="button" title="Muta/riattiva il microfono">
+    <span id="mic-mute-icon">🎤</span>
+  </button>
+  <audio id="voice-audio" hidden></audio>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
