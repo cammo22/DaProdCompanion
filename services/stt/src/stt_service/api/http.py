@@ -23,17 +23,28 @@ from ..brain_client import BrainClient
 from ..engine.whisper_engine import WhisperEngine
 from ..pipeline import VoicePipeline
 from ..variants import load_extra_variants
-from .schemas import DevicesResponse, HealthResponse, MuteStateResponse
+from .schemas import DevicesResponse, HealthResponse, MuteStateResponse, SpeakingMuteRequest
 
 
 class MicMuteState:
     """Contenitore mutabile condiviso tra il thread di cattura (legge tramite
     is_muted, passato a listen_loop) e gli endpoint /mic/* (scrivono): un
     bool locale nel lifespan non sarebbe raggiungibile dagli handler HTTP,
-    definiti come funzioni a modulo separate che vedono solo app.state."""
+    definiti come funzioni a modulo separate che vedono solo app.state.
+
+    Due cause di mute separate e indipendenti, non un unico bool: se fossero
+    lo stesso flag, un mute automatico durante la riproduzione TTS potrebbe
+    riattivare per sbaglio il microfono che l'utente aveva mutato lui stesso
+    a mano (o viceversa, restare mutato dopo la riproduzione se l'utente
+    aveva smutato nel frattempo). 'muted' e' vero se una delle due lo e'."""
 
     def __init__(self) -> None:
-        self.muted = False
+        self.manual_muted = False
+        self.speaking_muted = False
+
+    @property
+    def muted(self) -> bool:
+        return self.manual_muted or self.speaking_muted
 
 
 @asynccontextmanager
@@ -119,15 +130,29 @@ async def devices() -> DevicesResponse:
 
 @app.post("/mic/toggle-mute", response_model=MuteStateResponse)
 async def toggle_mute() -> MuteStateResponse:
+    """Toggle manuale, azionato dal pulsante sull'avatar: agisce solo sul
+    flag 'manuale', mai su quello 'in riproduzione' (vedi MicMuteState)."""
     state: MicMuteState = app.state.mute_state
-    state.muted = not state.muted
-    app.state.logger.info("Microfono %s", "mutato" if state.muted else "riattivato")
+    state.manual_muted = not state.manual_muted
+    app.state.logger.info("Microfono %s (manuale)", "mutato" if state.manual_muted else "riattivato")
     return MuteStateResponse(muted=state.muted)
 
 
 @app.get("/mic/mute-state", response_model=MuteStateResponse)
 async def mute_state_endpoint() -> MuteStateResponse:
     return MuteStateResponse(muted=app.state.mute_state.muted)
+
+
+@app.post("/mic/speaking-mute", response_model=MuteStateResponse)
+async def speaking_mute(request: SpeakingMuteRequest) -> MuteStateResponse:
+    """Chiamato da Electron esattamente quando inizia/finisce la riproduzione
+    audio (evento 'play'/'ended' reale, non una stima della durata): evita
+    che il microfono sempre acceso capti la voce del companion dalle casse e
+    la scambi per un nuovo comando (rischio di auto-innesco se una risposta
+    contiene il nome del bot)."""
+    state: MicMuteState = app.state.mute_state
+    state.speaking_muted = request.muted
+    return MuteStateResponse(muted=state.muted)
 
 
 @app.post("/shutdown", status_code=202)

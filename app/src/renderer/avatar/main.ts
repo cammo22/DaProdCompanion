@@ -21,6 +21,8 @@ declare const avatarAPI: {
   openChat(): void;
   toggleMicMute(): Promise<boolean>;
   getMicMuteState(): Promise<boolean>;
+  notifySpeakingStart(): void;
+  notifySpeakingEnd(): void;
 };
 
 // Il timer di auto-nascondimento della bubble vive qui (non nel main
@@ -56,8 +58,15 @@ function playVoiceAudio(url: string): void {
   const audioEl = document.getElementById("voice-audio") as HTMLAudioElement | null;
   if (!audioEl) return;
   audioEl.src = url;
+  // Stesso motivo di chat/main.ts: muta il microfono per la durata reale
+  // della riproduzione, non solo per la chat testuale.
+  avatarAPI.notifySpeakingStart();
+  const onPlaybackDone = () => avatarAPI.notifySpeakingEnd();
+  audioEl.addEventListener("ended", onPlaybackDone, { once: true });
+  audioEl.addEventListener("error", onPlaybackDone, { once: true });
   audioEl.play().catch((err) => {
     console.error("Riproduzione audio vocale fallita:", err);
+    onPlaybackDone();
   });
 }
 

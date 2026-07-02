@@ -21,3 +21,7 @@ class DevicesResponse(BaseModel):
 
 class MuteStateResponse(BaseModel):
     muted: bool
+
+
+class SpeakingMuteRequest(BaseModel):
+    muted: bool

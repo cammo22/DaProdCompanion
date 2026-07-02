@@ -25,4 +25,6 @@ contextBridge.exposeInMainWorld("avatarAPI", {
   },
   toggleMicMute: (): Promise<boolean> => ipcRenderer.invoke("avatar:toggle-mic-mute"),
   getMicMuteState: (): Promise<boolean> => ipcRenderer.invoke("avatar:get-mic-mute-state"),
+  notifySpeakingStart: (): void => ipcRenderer.send("audio:speaking-start"),
+  notifySpeakingEnd: (): void => ipcRenderer.send("audio:speaking-end"),
 });

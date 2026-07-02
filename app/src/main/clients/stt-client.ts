@@ -40,3 +40,18 @@ export async function getMicMuteState(): Promise<boolean> {
   const data = (await res.json()) as { muted: boolean };
   return data.muted;
 }
+
+/** Mute legato alla riproduzione audio reale (eventi play/ended lato
+ * renderer), indipendente dal mute manuale dell'utente: vedi MicMuteState
+ * lato stt_service, che compone i due flag separatamente apposta per non
+ * farli interferire tra loro. */
+export async function setSpeakingMute(muted: boolean): Promise<void> {
+  const res = await fetch(`${baseUrl()}/mic/speaking-mute`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ muted }),
+  });
+  if (!res.ok) {
+    throw new Error(`stt /mic/speaking-mute ha risposto ${res.status}`);
+  }
+}

@@ -8,6 +8,7 @@ import { app } from "electron";
 import { pathToFileURL } from "node:url";
 import { isAppQuitting, markAppQuitting } from "./app-state";
 import { getConfig, refreshConfig, writeBotName } from "./config";
+import { registerAudioHandlers } from "./ipc/audio-handlers";
 import { registerAvatarHandlers } from "./ipc/avatar-handlers";
 import { registerChatHandlers } from "./ipc/chat-handlers";
 import { registerGraphHandlers } from "./ipc/graph-handlers";
@@ -121,6 +122,7 @@ app.whenReady().then(async () => {
   registerChatHandlers();
   registerGraphHandlers();
   registerSettingsHandlers();
+  registerAudioHandlers();
 
   setAvatarState("thinking");
   console.log("[main] avvio brain_service, tts_service e stt_service...");

@@ -10,8 +10,16 @@ function appendMessage(text, sender) {
 }
 function playAudio(url) {
     const audio = new Audio(url);
+    // Muta il microfono per la durata reale di questa riproduzione (non una
+    // stima): senza, il microfono sempre acceso rischia di captare la voce
+    // del companion dalle casse e scambiarla per un nuovo comando.
+    chatAPI.notifySpeakingStart();
+    const onPlaybackDone = () => chatAPI.notifySpeakingEnd();
+    audio.addEventListener("ended", onPlaybackDone, { once: true });
+    audio.addEventListener("error", onPlaybackDone, { once: true });
     audio.play().catch((err) => {
         console.error("Riproduzione audio fallita:", err);
+        onPlaybackDone();
     });
 }
 function init() {

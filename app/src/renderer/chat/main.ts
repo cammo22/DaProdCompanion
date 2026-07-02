@@ -6,6 +6,8 @@ export {};
 
 declare const chatAPI: {
   sendMessage(message: string): Promise<{ reply: string; audioUrl: string | null }>;
+  notifySpeakingStart(): void;
+  notifySpeakingEnd(): void;
 };
 
 function appendMessage(text: string, sender: "user" | "bot"): void {
@@ -20,8 +22,16 @@ function appendMessage(text: string, sender: "user" | "bot"): void {
 
 function playAudio(url: string): void {
   const audio = new Audio(url);
+  // Muta il microfono per la durata reale di questa riproduzione (non una
+  // stima): senza, il microfono sempre acceso rischia di captare la voce
+  // del companion dalle casse e scambiarla per un nuovo comando.
+  chatAPI.notifySpeakingStart();
+  const onPlaybackDone = () => chatAPI.notifySpeakingEnd();
+  audio.addEventListener("ended", onPlaybackDone, { once: true });
+  audio.addEventListener("error", onPlaybackDone, { once: true });
   audio.play().catch((err) => {
     console.error("Riproduzione audio fallita:", err);
+    onPlaybackDone();
   });
 }
 
