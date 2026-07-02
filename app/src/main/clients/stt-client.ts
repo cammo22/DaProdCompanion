@@ -55,3 +55,35 @@ export async function setSpeakingMute(muted: boolean): Promise<void> {
     throw new Error(`stt /mic/speaking-mute ha risposto ${res.status}`);
   }
 }
+
+/** Pulsante "registra" (push-to-talk): avvia/ferma l'accumulo manuale
+ * dell'audio, inviato per intero alla fine senza bisogno del wake-word. */
+export async function startRecording(): Promise<void> {
+  const res = await fetch(`${baseUrl()}/recording/start`, { method: "POST" });
+  if (!res.ok) {
+    throw new Error(`stt /recording/start ha risposto ${res.status}`);
+  }
+}
+
+export async function stopRecording(): Promise<void> {
+  const res = await fetch(`${baseUrl()}/recording/stop`, { method: "POST" });
+  if (!res.ok) {
+    throw new Error(`stt /recording/stop ha risposto ${res.status}`);
+  }
+}
+
+/** Pulsante "live": apre/chiude la finestra di conversazione senza dover
+ * dire il nome del bot. */
+export async function startLiveMode(): Promise<void> {
+  const res = await fetch(`${baseUrl()}/live/start`, { method: "POST" });
+  if (!res.ok) {
+    throw new Error(`stt /live/start ha risposto ${res.status}`);
+  }
+}
+
+export async function stopLiveMode(): Promise<void> {
+  const res = await fetch(`${baseUrl()}/live/stop`, { method: "POST" });
+  if (!res.ok) {
+    throw new Error(`stt /live/stop ha risposto ${res.status}`);
+  }
+}

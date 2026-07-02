@@ -87,6 +87,63 @@ function initMicMuteButton() {
         avatarAPI.toggleMicMute().then(setMicMuteIcon);
     });
 }
+// Stato locale dei due pulsanti (registra/live): stt_service e' la fonte di
+// verita' (vedi RecordingState/ConversationWindow), ma qui basta rispecchiare
+// cio' che l'utente ha appena cliccato per aggiornare subito l'icona, senza
+// aspettare un giro di polling.
+let isRecording = false;
+let isLive = false;
+function initRecordButton() {
+    const button = document.getElementById("record-button");
+    const icon = document.getElementById("record-icon");
+    if (!button || !icon)
+        return;
+    button.addEventListener("click", (event) => {
+        event.stopPropagation(); // non deve anche aprire la chat
+        if (isRecording) {
+            isRecording = false;
+            button.classList.remove("recording");
+            icon.textContent = "🎙️";
+            button.title = "Clicca per registrare, clicca di nuovo per inviare";
+            avatarAPI.stopRecording().catch((err) => {
+                console.error("Impossibile fermare la registrazione:", err);
+            });
+        }
+        else {
+            isRecording = true;
+            button.classList.add("recording");
+            icon.textContent = "⏺️";
+            button.title = "Clicca di nuovo per inviare";
+            avatarAPI.startRecording().catch((err) => {
+                console.error("Impossibile avviare la registrazione:", err);
+            });
+        }
+    });
+}
+function initLiveButton() {
+    const button = document.getElementById("live-button");
+    if (!button)
+        return;
+    button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        if (isLive) {
+            isLive = false;
+            button.classList.remove("active");
+            button.title = "Modalita' live: parla senza dire il nome del bot";
+            avatarAPI.stopLiveMode().catch((err) => {
+                console.error("Impossibile fermare la modalita' live:", err);
+            });
+        }
+        else {
+            isLive = true;
+            button.classList.add("active");
+            button.title = "Modalita' live attiva: clicca per fermarla";
+            avatarAPI.startLiveMode().catch((err) => {
+                console.error("Impossibile avviare la modalita' live:", err);
+            });
+        }
+    });
+}
 function init() {
     avatarAPI.onStateChange((state) => setState(state));
     avatarAPI.onBubble((payload) => showReplyBubble(payload));
@@ -96,6 +153,8 @@ function init() {
         avatarAPI.openChat();
     });
     initMicMuteButton();
+    initRecordButton();
+    initLiveButton();
     const bubbleEl = document.getElementById("bubble");
     bubbleEl?.addEventListener("mouseenter", () => {
         if (isDreamingBubble)

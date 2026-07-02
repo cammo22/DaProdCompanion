@@ -1,5 +1,12 @@
 import { ipcMain } from "electron";
-import { getMicMuteState, toggleMicMute } from "../clients/stt-client";
+import {
+  getMicMuteState,
+  startLiveMode,
+  startRecording,
+  stopLiveMode,
+  stopRecording,
+  toggleMicMute,
+} from "../clients/stt-client";
 import { showChatWindow } from "../windows/chat-window";
 
 export function registerAvatarHandlers(): void {
@@ -20,4 +27,9 @@ export function registerAvatarHandlers(): void {
       return false;
     }
   });
+
+  ipcMain.handle("avatar:start-recording", () => startRecording());
+  ipcMain.handle("avatar:stop-recording", () => stopRecording());
+  ipcMain.handle("avatar:start-live-mode", () => startLiveMode());
+  ipcMain.handle("avatar:stop-live-mode", () => stopLiveMode());
 }

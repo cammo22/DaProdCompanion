@@ -51,3 +51,11 @@ def test_extend_resets_the_timer():
     window.extend()  # nuovo scambio: il timer riparte da qui
     clock.advance(250.0)
     assert window.is_awake() is True  # solo 250s dall'ultimo extend, non 500s dal primo
+
+
+def test_close_ends_the_window_immediately():
+    window = ConversationWindow(clock=FakeClock())
+    window.extend()
+    assert window.is_awake() is True
+    window.close()
+    assert window.is_awake() is False

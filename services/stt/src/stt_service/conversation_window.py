@@ -26,3 +26,8 @@ class ConversationWindow:
 
     def extend(self) -> None:
         self._awake_until = self._clock() + _AWAKE_SECONDS
+
+    def close(self) -> None:
+        """Chiude subito la finestra (usato dal pulsante 'live' per fermare
+        la modalita' conversazione senza aspettare i 5 minuti di inattivita')."""
+        self._awake_until = None

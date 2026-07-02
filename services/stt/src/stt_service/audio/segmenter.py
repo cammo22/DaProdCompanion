@@ -9,12 +9,24 @@ piu' preciso al momento della trascrizione.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import numpy as np
 
 _SILENCE_RMS_THRESHOLD = 0.01
-_SILENCE_BLOCKS_TO_END_SEGMENT = 3  # con blocchi da 0.5s, ~1.5s di silenzio chiude l'enunciato
-_MAX_SEGMENT_BLOCKS = 30  # ~15s: chiude comunque, non cresce all'infinito
+_SILENCE_BLOCKS_TO_END_SEGMENT = 5  # con blocchi da 0.5s, ~2.5s di silenzio chiude l'enunciato
+_MAX_SEGMENT_BLOCKS = 240  # ~120s: tetto di sicurezza, non un limite pensato per scattare spesso
 _MIN_SPEECH_BLOCKS = 2  # scarta blip troppo brevi (< ~1s)
+
+
+@dataclass
+class SpeechSegment:
+    audio: np.ndarray
+    # Falso se il segmento e' stato chiuso solo perche' ha toccato il tetto
+    # massimo di durata, non perche' l'utente ha davvero smesso di parlare:
+    # pipeline.py lo usa per capire se aspettarsi un seguito dello stesso
+    # discorso invece di inoltrarlo subito a brain come messaggio a se' stante.
+    ended_by_silence: bool
 
 
 class SpeechSegmenter:
@@ -32,9 +44,10 @@ class SpeechSegmenter:
         segmentazione qui sopra (gia' testata con audio sintetico)."""
         return self._speaking
 
-    def push_block(self, block: np.ndarray) -> np.ndarray | None:
-        """Restituisce l'audio completo quando un enunciato si conclude,
-        altrimenti None (segmento ancora in corso o silenzio prolungato)."""
+    def push_block(self, block: np.ndarray) -> SpeechSegment | None:
+        """Restituisce il segmento completo quando un enunciato si conclude
+        (o viene troncato dal tetto massimo), altrimenti None (segmento
+        ancora in corso o silenzio prolungato)."""
         rms = float(np.sqrt(np.mean(np.square(block))))
         is_loud = rms >= _SILENCE_RMS_THRESHOLD
 
@@ -48,12 +61,12 @@ class SpeechSegmenter:
             self._silence_run += 1
 
         if self._speaking and self._silence_run >= _SILENCE_BLOCKS_TO_END_SEGMENT:
-            return self._finalize()
+            return self._finalize(ended_by_silence=True)
         if self._speaking and len(self._buffer) >= _MAX_SEGMENT_BLOCKS:
-            return self._finalize()
+            return self._finalize(ended_by_silence=False)
         return None
 
-    def _finalize(self) -> np.ndarray | None:
+    def _finalize(self, *, ended_by_silence: bool) -> SpeechSegment | None:
         segment_blocks = self._buffer
         loud_block_count = self._loud_block_count
         self._buffer = []
@@ -65,4 +78,4 @@ class SpeechSegmenter:
         # deve far passare un singolo blip come se fosse parlato vero.
         if loud_block_count < _MIN_SPEECH_BLOCKS:
             return None
-        return np.concatenate(segment_blocks)
+        return SpeechSegment(audio=np.concatenate(segment_blocks), ended_by_silence=ended_by_silence)

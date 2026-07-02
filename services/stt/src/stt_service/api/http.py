@@ -23,7 +23,23 @@ from ..brain_client import BrainClient
 from ..engine.whisper_engine import WhisperEngine
 from ..pipeline import VoicePipeline
 from ..variants import load_extra_variants
-from .schemas import DevicesResponse, HealthResponse, MuteStateResponse, SpeakingMuteRequest
+from .schemas import (
+    DevicesResponse,
+    HealthResponse,
+    LiveStateResponse,
+    MuteStateResponse,
+    RecordingStateResponse,
+    SpeakingMuteRequest,
+)
+
+
+class RecordingState:
+    """Stesso motivo di MicMuteState: contenitore condiviso tra il thread di
+    cattura (legge tramite is_recording, passato a listen_loop) e gli
+    endpoint /recording/* (scrivono)."""
+
+    def __init__(self) -> None:
+        self.active = False
 
 
 class MicMuteState:
@@ -73,6 +89,7 @@ async def lifespan(app: FastAPI):
     main_loop = asyncio.get_event_loop()
     stop_event = threading.Event()
     mute_state = MicMuteState()
+    recording_state = RecordingState()
 
     def _notify(event_type: str) -> None:
         async def _do() -> None:
@@ -86,6 +103,9 @@ async def lifespan(app: FastAPI):
     def on_segment(audio):
         asyncio.run_coroutine_threadsafe(pipeline.handle_segment(audio), main_loop)
 
+    def on_recording_complete(audio):
+        asyncio.run_coroutine_threadsafe(pipeline.handle_manual_recording(audio), main_loop)
+
     listener_thread = threading.Thread(
         target=listen_loop,
         kwargs={
@@ -95,6 +115,8 @@ async def lifespan(app: FastAPI):
             "on_listening_start": lambda: _notify("listening-started"),
             "on_listening_end": lambda: _notify("listening-finished"),
             "is_muted": lambda: mute_state.muted,
+            "is_recording": lambda: recording_state.active,
+            "on_recording_complete": on_recording_complete,
         },
         daemon=True,
     )
@@ -104,8 +126,10 @@ async def lifespan(app: FastAPI):
     app.state.guard = guard
     app.state.logger = app_logger
     app.state.brain = brain
+    app.state.pipeline = pipeline
     app.state.stop_event = stop_event
     app.state.mute_state = mute_state
+    app.state.recording_state = recording_state
 
     app_logger.info("stt_service pronto: ascolto attivo per il nome '%s'", settings.bot_name)
 
@@ -153,6 +177,47 @@ async def speaking_mute(request: SpeakingMuteRequest) -> MuteStateResponse:
     state: MicMuteState = app.state.mute_state
     state.speaking_muted = request.muted
     return MuteStateResponse(muted=state.muted)
+
+
+@app.post("/recording/start", response_model=RecordingStateResponse)
+async def recording_start() -> RecordingStateResponse:
+    """Pulsante 'registra' sull'avatar: mentre attivo, il thread di cattura
+    accumula tutto l'audio in un buffer dedicato invece di passarlo a
+    SpeechSegmenter (vedi capture.py) — nessuna soglia di silenzio, nessun
+    wake-word richiesto, il click stesso e' l'intenzione dell'utente."""
+    app.state.recording_state.active = True
+    app.state.logger.info("Registrazione manuale avviata")
+    return RecordingStateResponse(recording=True)
+
+
+@app.post("/recording/stop", response_model=RecordingStateResponse)
+async def recording_stop() -> RecordingStateResponse:
+    """Ferma l'accumulo: il buffer registrato finora viene consegnato alla
+    pipeline (trascritto e inoltrato) dal thread di cattura stesso, non da
+    qui — questo endpoint si limita a segnalare lo stop, che il thread nota
+    al piu' entro un blocco (mezzo secondo)."""
+    app.state.recording_state.active = False
+    app.state.logger.info("Registrazione manuale fermata")
+    return RecordingStateResponse(recording=False)
+
+
+@app.post("/live/start", response_model=LiveStateResponse)
+async def live_start() -> LiveStateResponse:
+    """Pulsante 'live': apre la finestra di conversazione (vedi
+    ConversationWindow) come se il wake-word fosse appena stato sentito,
+    cosi' l'utente puo' iniziare a parlare senza dire il nome del bot."""
+    app.state.pipeline.start_live_mode()
+    app.state.logger.info("Modalita' live avviata")
+    return LiveStateResponse(live=True)
+
+
+@app.post("/live/stop", response_model=LiveStateResponse)
+async def live_stop() -> LiveStateResponse:
+    """Richiude subito la finestra di conversazione, senza aspettare i 5
+    minuti di inattivita'."""
+    app.state.pipeline.stop_live_mode()
+    app.state.logger.info("Modalita' live fermata")
+    return LiveStateResponse(live=False)
 
 
 @app.post("/shutdown", status_code=202)

@@ -25,3 +25,11 @@ class MuteStateResponse(BaseModel):
 
 class SpeakingMuteRequest(BaseModel):
     muted: bool
+
+
+class RecordingStateResponse(BaseModel):
+    recording: bool
+
+
+class LiveStateResponse(BaseModel):
+    live: bool

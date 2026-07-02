@@ -217,3 +217,52 @@ html, body {
   background: rgba(220, 60, 60, 0.75);
   opacity: 0.9;
 }
+
+.side-button {
+  position: absolute;
+  bottom: 14px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(20, 20, 30, 0.45);
+  color: #fff;
+  font-size: 16px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+  -webkit-app-region: no-drag;
+}
+
+.side-button:hover {
+  opacity: 1;
+}
+
+.record-button {
+  left: 14px;
+}
+
+.record-button.recording {
+  background: rgba(220, 60, 60, 0.85);
+  opacity: 1;
+  animation: recording-pulse 1.2s ease-in-out infinite;
+}
+
+.live-button {
+  left: 58px;
+}
+
+.live-button.active {
+  background: rgba(74, 200, 130, 0.85);
+  opacity: 1;
+  box-shadow: 0 0 10px rgba(74, 200, 130, 0.7);
+}
+
+@keyframes recording-pulse {
+  0%, 100% { box-shadow: 0 0 6px rgba(220, 60, 60, 0.6); }
+  50% { box-shadow: 0 0 16px rgba(220, 60, 60, 0.95); }
+}
