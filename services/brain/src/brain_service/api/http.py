@@ -38,6 +38,7 @@ from .schemas import (
     DreamingStatusResponse,
     GraphSnapshotResponse,
     HealthResponse,
+    PartialTranscriptRequest,
     QuantumStatusResponse,
     VoiceEventRequest,
 )
@@ -216,6 +217,16 @@ async def events_voice(request: VoiceEventRequest) -> dict[str, str]:
         scheduler.suppress()
     elif request.type in ("listening-finished", "recording-finished"):
         scheduler.unsuppress()
+    return {"status": "ok"}
+
+
+@app.post("/events/partial-transcript")
+async def events_partial_transcript(request: PartialTranscriptRequest) -> dict[str, str]:
+    """Relay verso Electron dell'anteprima del parlato (vedi
+    VoicePipeline.on_partial_transcript): stesso motivo di /events/voice,
+    solo brain parla con Electron in push. Testo vuoto = 'anteprima
+    cancellata', non un errore."""
+    app.state.event_bus.publish("partial-transcript", {"text": request.text})
     return {"status": "ok"}
 
 

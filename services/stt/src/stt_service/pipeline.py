@@ -45,6 +45,7 @@ class VoicePipeline:
         conversation_window: ConversationWindow | None = None,
         merge_window_seconds: float = _MERGE_WINDOW_SECONDS,
         on_wake_word: Callable[[], None] = lambda: None,
+        on_partial_transcript: Callable[[str], None] = lambda text: None,
     ) -> None:
         self._engine = engine
         self._brain = brain
@@ -53,6 +54,13 @@ class VoicePipeline:
         self._conversation_window = conversation_window or ConversationWindow()
         self._merge_window_seconds = merge_window_seconds
         self._on_wake_word = on_wake_word
+        # Anteprima di cio' che l'utente sta dicendo, mostrata sull'avatar
+        # mentre parla e cancellata non appena il messaggio viene davvero
+        # inviato (vedi _flush): non e' uno streaming parola per parola (
+        # faster-whisper qui lavora a segmenti interi, non a token), ma cresce
+        # ad ogni pezzo accodato di un discorso lungo, dando comunque un
+        # riscontro immediato invece di uno schermo vuoto finche' non risponde.
+        self._on_partial_transcript = on_partial_transcript
         self._pending_parts: list[str] = []
         self._flush_task: asyncio.Task | None = None
 
@@ -84,6 +92,7 @@ class VoicePipeline:
         # passano 5 minuti di silenzio).
         self._conversation_window.extend()
         self._pending_parts.append(text)
+        self._on_partial_transcript(" ".join(self._pending_parts))
 
         if segment.ended_by_silence:
             await self._flush()
@@ -107,6 +116,7 @@ class VoicePipeline:
             return
         text = " ".join(self._pending_parts)
         self._pending_parts = []
+        self._on_partial_transcript("")  # sta per arrivare la vera risposta, l'anteprima non serve piu'
         try:
             await self._brain.send_message(text)
         except Exception:
@@ -123,10 +133,13 @@ class VoicePipeline:
             return
         logger.info("Registrazione manuale trascritta: %s", text)
         self._conversation_window.extend()
+        self._on_partial_transcript(text)
         try:
             await self._brain.send_message(text)
         except Exception:
             logger.exception("Invio della registrazione manuale a brain_service fallito")
+        finally:
+            self._on_partial_transcript("")
 
     def start_live_mode(self) -> None:
         """Pulsante 'live': apre subito la finestra di conversazione, come se

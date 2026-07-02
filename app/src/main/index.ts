@@ -27,6 +27,7 @@ import {
   setListening,
   setVoiceProcessing,
   showDreamingBubble,
+  showPartialTranscript,
 } from "./windows/avatar-window";
 import { createChatWindow, notifyNewExchange, showChatWindow } from "./windows/chat-window";
 import { createGraphWindow, notifyGraphUpdated, notifyQuantumStatusChanged, showGraphWindow } from "./windows/graph-window";
@@ -110,11 +111,16 @@ function handleBrainEvent(event: BrainEvent): void {
       const usedMemory = Boolean(event.used_memory);
       const bubbleDurationMs = durationSeconds ? durationSeconds * 1000 + 500 : undefined;
       const audioUrl = audioPath ? pathToFileURL(audioPath).href : null;
-      flashReply(reply, usedMemory, bubbleDurationMs, audioUrl);
+      flashReply(reply, usedMemory, bubbleDurationMs, audioUrl, userMessage);
       // La chat testuale mostra anche gli scambi partiti dalla voce (stessa
       // conversazione, solo un altro modo di parlare), ma non ne riproduce
       // l'audio: se lo facesse, suonerebbe due volte (gia' in corso sull'avatar).
       if (userMessage) notifyNewExchange(userMessage, reply);
+      break;
+    }
+    case "partial-transcript": {
+      const text = typeof event.text === "string" ? event.text : "";
+      showPartialTranscript(text);
       break;
     }
     case "quantum-started":

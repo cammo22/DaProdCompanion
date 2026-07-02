@@ -94,12 +94,22 @@ async def lifespan(app: FastAPI):
 
         asyncio.run_coroutine_threadsafe(_do(), main_loop)
 
+    def _notify_partial_transcript(text: str) -> None:
+        async def _do() -> None:
+            try:
+                await brain.notify_partial_transcript(text)
+            except Exception:
+                app_logger.exception("Notifica dell'anteprima del parlato a brain_service fallita")
+
+        asyncio.run_coroutine_threadsafe(_do(), main_loop)
+
     pipeline = VoicePipeline(
         engine=engine,
         brain=brain,
         bot_name=settings.bot_name,
         extra_variants=extra_variants,
         on_wake_word=lambda: _notify("wake-word-detected"),
+        on_partial_transcript=_notify_partial_transcript,
     )
 
     def on_segment(audio):

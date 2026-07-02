@@ -29,5 +29,12 @@ class BrainClient:
         response = await self._client.post("/events/voice", json={"type": event_type})
         response.raise_for_status()
 
+    async def notify_partial_transcript(self, text: str) -> None:
+        """Anteprima di quello che l'utente sta dicendo (vedi
+        VoicePipeline.on_partial_transcript), inoltrata a brain con lo stesso
+        criterio di notify_event: solo brain parla con Electron in push."""
+        response = await self._client.post("/events/partial-transcript", json={"text": text})
+        response.raise_for_status()
+
     async def aclose(self) -> None:
         await self._client.aclose()

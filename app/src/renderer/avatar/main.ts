@@ -11,6 +11,14 @@ interface BubblePayload {
   usedMemory: boolean;
   suggestedDurationMs: number;
   audioUrl: string | null;
+  userMessage: string | null;
+}
+
+interface HistoryTurn {
+  id: number;
+  eventType: "user_message" | "bot_reply";
+  content: string;
+  createdAt: string;
 }
 
 declare const avatarAPI: {
@@ -18,6 +26,7 @@ declare const avatarAPI: {
   onBubble(callback: (payload: BubblePayload) => void): void;
   onDreamingStart(callback: () => void): void;
   onDreamingEnd(callback: () => void): void;
+  onPartialTranscript(callback: (text: string) => void): void;
   openChat(): void;
   toggleMicMute(): Promise<boolean>;
   getMicMuteState(): Promise<boolean>;
@@ -27,6 +36,7 @@ declare const avatarAPI: {
   stopRecording(): Promise<void>;
   startLiveMode(): Promise<void>;
   stopLiveMode(): Promise<void>;
+  getHistory(): Promise<HistoryTurn[]>;
 };
 
 // Il timer di auto-nascondimento della bubble vive qui (non nel main
@@ -104,11 +114,23 @@ function initSkipButton(): void {
 function showReplyBubble(payload: BubblePayload): void {
   isDreamingBubble = false;
   currentBubbleDurationMs = payload.suggestedDurationMs;
+  hidePartialTranscript(); // la risposta vera e' arrivata, l'anteprima non serve piu'
 
   const bubbleEl = document.getElementById("bubble");
   const textEl = document.getElementById("bubble-text");
   const badgeEl = document.getElementById("bubble-badge");
-  if (!bubbleEl || !textEl || !badgeEl) return;
+  const userMessageEl = document.getElementById("bubble-user-message");
+  if (!bubbleEl || !textEl || !badgeEl || !userMessageEl) return;
+
+  // Si vede sempre sia cosa e' stato detto sia la risposta, non solo la
+  // risposta da sola: l'utente ha chiesto esplicitamente di vedere entrambi
+  // i lati dello scambio nella bolla dell'avatar.
+  if (payload.userMessage) {
+    userMessageEl.textContent = `Tu: ${payload.userMessage}`;
+    userMessageEl.classList.remove("hidden");
+  } else {
+    userMessageEl.classList.add("hidden");
+  }
 
   textEl.textContent = payload.text;
   badgeEl.classList.toggle("hidden", !payload.usedMemory);
@@ -121,6 +143,21 @@ function showReplyBubble(payload: BubblePayload): void {
   scheduleHide(currentBubbleDurationMs);
 }
 
+function showPartialTranscript(text: string): void {
+  const el = document.getElementById("partial-transcript");
+  if (!el) return;
+  if (!text) {
+    hidePartialTranscript();
+    return;
+  }
+  el.textContent = `Tu: ${text}...`;
+  el.classList.remove("hidden");
+}
+
+function hidePartialTranscript(): void {
+  document.getElementById("partial-transcript")?.classList.add("hidden");
+}
+
 function showDreamingBubble(): void {
   isDreamingBubble = true;
   clearHideTimer(); // niente auto-hide: segue lo stato reale del dreaming
@@ -128,10 +165,12 @@ function showDreamingBubble(): void {
   const bubbleEl = document.getElementById("bubble");
   const textEl = document.getElementById("bubble-text");
   const badgeEl = document.getElementById("bubble-badge");
+  const userMessageEl = document.getElementById("bubble-user-message");
   if (!bubbleEl || !textEl || !badgeEl) return;
 
   textEl.textContent = "Sognando...";
   badgeEl.classList.add("hidden");
+  userMessageEl?.classList.add("hidden");
   bubbleEl.classList.remove("hidden");
 }
 
@@ -216,11 +255,60 @@ function initLiveButton(): void {
   });
 }
 
+function formatHistoryTime(iso: string): string {
+  return new Date(iso).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+async function loadHistoryPanel(): Promise<void> {
+  const listEl = document.getElementById("history-list");
+  if (!listEl) return;
+  listEl.textContent = "Caricamento...";
+  try {
+    const turns = await avatarAPI.getHistory();
+    listEl.innerHTML = "";
+    if (turns.length === 0) {
+      listEl.textContent = "Nessun messaggio ancora.";
+      return;
+    }
+    for (const turn of turns) {
+      const entry = document.createElement("div");
+      entry.className = `history-entry history-entry-${turn.eventType === "user_message" ? "user" : "bot"}`;
+      const label = turn.eventType === "user_message" ? "Tu" : "Babbasone";
+      entry.textContent = `${label} (${formatHistoryTime(turn.createdAt)}): ${turn.content}`;
+      listEl.appendChild(entry);
+    }
+    listEl.scrollTop = listEl.scrollHeight;
+  } catch (err) {
+    listEl.textContent = "Impossibile caricare la cronologia.";
+    console.error("Caricamento cronologia avatar fallito:", err);
+  }
+}
+
+function initHistoryToggle(): void {
+  const button = document.getElementById("history-toggle-button");
+  const panel = document.getElementById("history-panel");
+  const closeButton = document.getElementById("history-close-button");
+  if (!button || !panel || !closeButton) return;
+
+  button.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const willShow = panel.classList.contains("hidden");
+    panel.classList.toggle("hidden", !willShow);
+    if (willShow) loadHistoryPanel();
+  });
+
+  closeButton.addEventListener("click", (event) => {
+    event.stopPropagation();
+    panel.classList.add("hidden");
+  });
+}
+
 function init(): void {
   avatarAPI.onStateChange((state) => setState(state));
   avatarAPI.onBubble((payload) => showReplyBubble(payload));
   avatarAPI.onDreamingStart(() => showDreamingBubble());
   avatarAPI.onDreamingEnd(() => hideBubble());
+  avatarAPI.onPartialTranscript((text) => showPartialTranscript(text));
 
   document.getElementById("avatar")?.addEventListener("click", () => {
     avatarAPI.openChat();
@@ -230,6 +318,7 @@ function init(): void {
   initRecordButton();
   initLiveButton();
   initSkipButton();
+  initHistoryToggle();
 
   const bubbleEl = document.getElementById("bubble");
   bubbleEl?.addEventListener("mouseenter", () => {

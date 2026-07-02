@@ -6,9 +6,18 @@
 <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
+  <div id="partial-transcript" class="partial-transcript hidden"></div>
   <div id="bubble" class="bubble hidden">
     <div id="bubble-badge" class="bubble-badge hidden" title="Ha usato la memoria">🧠</div>
+    <div id="bubble-user-message" class="bubble-user-message hidden"></div>
     <div id="bubble-text" class="bubble-text"></div>
+  </div>
+  <div id="history-panel" class="history-panel hidden">
+    <div class="history-panel-header">
+      <span>Cronologia</span>
+      <button id="history-close-button" class="history-close-button" type="button" title="Chiudi">✕</button>
+    </div>
+    <div id="history-list" class="history-list"></div>
   </div>
   <div id="avatar" class="avatar" data-state="idle" title="Clicca per aprire la chat">
     <div class="avatar-ring"></div>
@@ -30,6 +39,10 @@
     </button>
     <button id="skip-button" class="toolbar-button skip-button" type="button" title="Salta la lettura della risposta" disabled>
       ⏭️
+    </button>
+    <span class="button-bar-divider"></span>
+    <button id="history-toggle-button" class="toolbar-button" type="button" title="Mostra/nascondi la cronologia della chat">
+      🕘
     </button>
   </div>
   <audio id="voice-audio" hidden></audio>

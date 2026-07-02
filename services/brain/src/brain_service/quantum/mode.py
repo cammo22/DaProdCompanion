@@ -224,7 +224,12 @@ class QuantumMode:
                 "messages": [{"role": "user", "content": prompt}],
                 "stream": False,
                 "format": _ITERATION_SCHEMA,
-                "options": {"num_ctx": self._num_ctx, "num_predict": 512},
+                # num_predict alto come in consolidation.py: senza, il default di
+                # Ollama tronca a meta' schema (osservato con 512: ogni singola
+                # iterazione falliva il parsing JSON), specialmente perche' il
+                # modello puo' impiegare parte del budget in ragionamento interno
+                # prima di arrivare al JSON vero e proprio.
+                "options": {"num_ctx": self._num_ctx, "num_predict": 2048},
             },
         )
         response.raise_for_status()
@@ -281,7 +286,7 @@ class QuantumMode:
                     ],
                     "stream": False,
                     "format": _HANDOFF_SCHEMA,
-                    "options": {"num_ctx": self._num_ctx, "num_predict": 256},
+                    "options": {"num_ctx": self._num_ctx, "num_predict": 1024},
                 },
             )
             response.raise_for_status()

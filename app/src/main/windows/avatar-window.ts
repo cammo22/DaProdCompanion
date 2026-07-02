@@ -63,6 +63,7 @@ export function flashReply(
   usedMemory: boolean,
   suggestedDurationMs = 8000,
   audioUrl?: string | null,
+  userMessage?: string | null,
 ): void {
   if (idleTimer) clearTimeout(idleTimer);
   setAvatarState("speaking");
@@ -71,10 +72,19 @@ export function flashReply(
     usedMemory,
     suggestedDurationMs,
     audioUrl: audioUrl ?? null,
+    userMessage: userMessage ?? null,
   });
   idleTimer = setTimeout(() => {
     setAvatarState("idle");
   }, suggestedDurationMs);
+}
+
+/** Anteprima di quello che l'utente sta dicendo, aggiornata man mano che
+ * arrivano nuovi pezzi trascritti (vedi evento partial-transcript, inoltrato
+ * da VoicePipeline.on_partial_transcript). Testo vuoto = nascondila: e' cosi'
+ * che stt segnala "sto per inviare il messaggio vero", non un errore. */
+export function showPartialTranscript(text: string): void {
+  avatarWindow?.webContents.send("avatar:partial-transcript", text);
 }
 
 /** Stato "in ascolto": segue esattamente il microfono (vedi eventi

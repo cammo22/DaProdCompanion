@@ -1,4 +1,5 @@
 import { ipcMain } from "electron";
+import { getConversationHistory, type ConversationTurn } from "../clients/brain-client";
 import {
   getMicMuteState,
   startLiveMode,
@@ -32,4 +33,12 @@ export function registerAvatarHandlers(): void {
   ipcMain.handle("avatar:stop-recording", () => stopRecording());
   ipcMain.handle("avatar:start-live-mode", () => startLiveMode());
   ipcMain.handle("avatar:stop-live-mode", () => stopLiveMode());
+
+  ipcMain.handle("avatar:get-history", async (): Promise<ConversationTurn[]> => {
+    try {
+      return await getConversationHistory();
+    } catch {
+      return [];
+    }
+  });
 }

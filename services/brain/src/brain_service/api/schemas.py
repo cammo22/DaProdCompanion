@@ -79,3 +79,7 @@ class DreamingStatusResponse(BaseModel):
 class QuantumStatusResponse(BaseModel):
     active: bool
     iterations_done: int
+
+
+class PartialTranscriptRequest(BaseModel):
+    text: str

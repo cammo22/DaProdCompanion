@@ -170,6 +170,41 @@ def test_forced_cut_flushes_alone_after_merge_window_if_no_continuation():
     assert brain.sent == ["Babbasone dicevo che"]
 
 
+def test_partial_transcript_callback_grows_with_each_pending_part():
+    previews: list[str] = []
+    pipeline = VoicePipeline(
+        engine=FakeEngine("Babbasone dicevo che", "ho fatto una passeggiata"),
+        brain=FakeBrain(),
+        bot_name="Babbasone",
+        extra_variants=[],
+        conversation_window=ConversationWindow(clock=FakeClock()),
+        on_partial_transcript=lambda text: previews.append(text),
+    )
+
+    async def run() -> None:
+        await pipeline.handle_segment(forced_cut_segment())
+        await pipeline.handle_segment(silence_segment())
+
+    asyncio.run(run())
+
+    assert previews[0] == "Babbasone dicevo che"
+    assert previews[1] == "Babbasone dicevo che ho fatto una passeggiata"
+    assert previews[-1] == ""  # cancellata subito prima dell'invio finale
+
+
+def test_partial_transcript_callback_fires_and_clears_for_manual_recording():
+    previews: list[str] = []
+    pipeline = VoicePipeline(
+        engine=FakeEngine("ciao babbasone"),
+        brain=FakeBrain(),
+        bot_name="Babbasone",
+        extra_variants=[],
+        on_partial_transcript=lambda text: previews.append(text),
+    )
+    asyncio.run(pipeline.handle_manual_recording(DUMMY_AUDIO))
+    assert previews == ["ciao babbasone", ""]
+
+
 def test_three_forced_cuts_in_a_row_still_merge_into_one_message():
     pipeline, brain = make_pipeline("Babbasone allora", "ti volevo dire", "che tutto bene")
 

@@ -5,6 +5,14 @@ export interface BubblePayload {
   usedMemory: boolean;
   suggestedDurationMs: number;
   audioUrl: string | null;
+  userMessage: string | null;
+}
+
+export interface HistoryTurn {
+  id: number;
+  eventType: "user_message" | "bot_reply";
+  content: string;
+  createdAt: string;
 }
 
 contextBridge.exposeInMainWorld("avatarAPI", {
@@ -20,6 +28,9 @@ contextBridge.exposeInMainWorld("avatarAPI", {
   onDreamingEnd: (callback: () => void): void => {
     ipcRenderer.on("avatar:dreaming-end", () => callback());
   },
+  onPartialTranscript: (callback: (text: string) => void): void => {
+    ipcRenderer.on("avatar:partial-transcript", (_event, text: string) => callback(text));
+  },
   openChat: (): void => {
     ipcRenderer.send("avatar:open-chat");
   },
@@ -31,4 +42,5 @@ contextBridge.exposeInMainWorld("avatarAPI", {
   stopRecording: (): Promise<void> => ipcRenderer.invoke("avatar:stop-recording"),
   startLiveMode: (): Promise<void> => ipcRenderer.invoke("avatar:start-live-mode"),
   stopLiveMode: (): Promise<void> => ipcRenderer.invoke("avatar:stop-live-mode"),
+  getHistory: (): Promise<HistoryTurn[]> => ipcRenderer.invoke("avatar:get-history"),
 });
