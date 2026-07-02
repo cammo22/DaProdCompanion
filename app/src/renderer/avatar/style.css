@@ -262,6 +262,16 @@ html, body {
   box-shadow: 0 0 10px rgba(74, 200, 130, 0.7);
 }
 
+.skip-button {
+  left: 102px;
+  font-size: 14px;
+}
+
+.skip-button:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
 @keyframes recording-pulse {
   0%, 100% { box-shadow: 0 0 6px rgba(220, 60, 60, 0.6); }
   50% { box-shadow: 0 0 16px rgba(220, 60, 60, 0.95); }

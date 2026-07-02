@@ -16,8 +16,8 @@ let chatWindow: BrowserWindow | null = null;
 
 export function createChatWindow(): BrowserWindow {
   chatWindow = new BrowserWindow({
-    width: 380,
-    height: 540,
+    width: 820,
+    height: 880,
     show: false,
     title: "Chat",
     webPreferences: {

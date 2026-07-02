@@ -23,6 +23,11 @@ function scheduleHide(durationMs) {
     clearHideTimer();
     hideTimer = setTimeout(hideBubble, durationMs);
 }
+function setSkipButtonEnabled(enabled) {
+    const button = document.getElementById("skip-button");
+    if (button)
+        button.disabled = !enabled;
+}
 function playVoiceAudio(url) {
     const audioEl = document.getElementById("voice-audio");
     if (!audioEl)
@@ -31,12 +36,34 @@ function playVoiceAudio(url) {
     // Stesso motivo di chat/main.ts: muta il microfono per la durata reale
     // della riproduzione, non solo per la chat testuale.
     avatarAPI.notifySpeakingStart();
-    const onPlaybackDone = () => avatarAPI.notifySpeakingEnd();
+    setSkipButtonEnabled(true);
+    const onPlaybackDone = () => {
+        avatarAPI.notifySpeakingEnd();
+        setSkipButtonEnabled(false);
+    };
     audioEl.addEventListener("ended", onPlaybackDone, { once: true });
     audioEl.addEventListener("error", onPlaybackDone, { once: true });
     audioEl.play().catch((err) => {
         console.error("Riproduzione audio vocale fallita:", err);
         onPlaybackDone();
+    });
+}
+function skipVoiceAudio() {
+    const audioEl = document.getElementById("voice-audio");
+    if (!audioEl || audioEl.paused)
+        return;
+    audioEl.pause();
+    // pause() non genera 'ended': lo stesso cleanup va innescato qui a mano.
+    avatarAPI.notifySpeakingEnd();
+    setSkipButtonEnabled(false);
+}
+function initSkipButton() {
+    const button = document.getElementById("skip-button");
+    if (!button)
+        return;
+    button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        skipVoiceAudio();
     });
 }
 function showReplyBubble(payload) {
@@ -155,6 +182,7 @@ function init() {
     initMicMuteButton();
     initRecordButton();
     initLiveButton();
+    initSkipButton();
     const bubbleEl = document.getElementById("bubble");
     bubbleEl?.addEventListener("mouseenter", () => {
         if (isDreamingBubble)
