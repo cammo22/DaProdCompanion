@@ -79,6 +79,14 @@ export function pythonExecutablePath(): string {
   return path.join(REPO_ROOT, ".venv", "Scripts", "python.exe");
 }
 
+/** True se il runtime Python atteso (il venv uv) esiste davvero al percorso
+ * risolto: usato all'avvio per dare un messaggio d'errore mirato quando
+ * l'eseguibile portable viene lanciato senza DAPRODCOMPANION_ROOT (quindi
+ * REPO_ROOT punta dentro le risorse dell'app, dove il venv non c'e'). */
+export function pythonRuntimeExists(): boolean {
+  return fs.existsSync(pythonExecutablePath());
+}
+
 /** Scrive/aggiorna piu' chiavi in .env in un solo passaggio: sostituisce le
  * righe KEY= gia' presenti, aggiunge in coda quelle mancanti. Stessa logica
  * (per una chiave sola) di companion_shared.config.first_run._write_bot_name

@@ -8,7 +8,7 @@ import { app, dialog } from "electron";
 import { pathToFileURL } from "node:url";
 import { isAppQuitting, markAppQuitting } from "./app-state";
 import { getDiagnostics } from "./clients/brain-client";
-import { getConfig, refreshConfig, writeBotName } from "./config";
+import { getConfig, pythonRuntimeExists, refreshConfig, writeBotName } from "./config";
 import { registerAudioHandlers } from "./ipc/audio-handlers";
 import { registerAvatarHandlers } from "./ipc/avatar-handlers";
 import { registerChatHandlers } from "./ipc/chat-handlers";
@@ -186,6 +186,29 @@ app.whenReady().then(async () => {
   showGraphWindow();
 
   setAvatarState("thinking");
+
+  // Se il runtime Python non esiste al percorso atteso, avviare i supervisori
+  // e' inutile: falliranno tutti con un errore criptico. Diamo subito il
+  // messaggio giusto a seconda del contesto (eseguibile portable senza la
+  // variabile d'ambiente, oppure checkout di sviluppo senza 'uv sync').
+  if (!pythonRuntimeExists()) {
+    setAvatarState("idle");
+    const detail = app.isPackaged
+      ? "L'eseguibile portable ha bisogno di sapere dove si trova il checkout del progetto " +
+        "(dove vivono .env e .venv). Imposta la variabile d'ambiente DAPRODCOMPANION_ROOT sul " +
+        "percorso di quel checkout e riavvia. Nota: questa versione non include ancora Python/" +
+        "Ollama al suo interno, vanno installati a parte (vedi README)."
+      : "Non trovo l'ambiente Python (.venv). Dalla radice del progetto esegui:\n\n" +
+        "  uv sync --all-packages\n\ne riavvia il companion.";
+    dialog.showMessageBox({
+      type: "error",
+      title: "DaProdCompanion — ambiente non pronto",
+      message: "Manca l'ambiente Python necessario per avviare il companion.",
+      detail,
+    });
+    return;
+  }
+
   console.log("[main] avvio brain_service, tts_service e stt_service...");
   brainSupervisor = createBrainSupervisor();
   ttsSupervisor = createTtsSupervisor();
