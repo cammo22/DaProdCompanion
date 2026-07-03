@@ -70,6 +70,7 @@ function showReplyBubble(payload) {
     isDreamingBubble = false;
     currentBubbleDurationMs = payload.suggestedDurationMs;
     hidePartialTranscript(); // la risposta vera e' arrivata, l'anteprima non serve piu'
+    hideHistoryPanel(); // stessa area della bolla: senza chiuderlo, la nuova risposta resterebbe nascosta dietro
     const bubbleEl = document.getElementById("bubble");
     const textEl = document.getElementById("bubble-text");
     const badgeEl = document.getElementById("bubble-badge");
@@ -103,15 +104,20 @@ function showPartialTranscript(text) {
         hidePartialTranscript();
         return;
     }
+    hideHistoryPanel(); // stessa area della bolla, vedi showReplyBubble
     el.textContent = `Tu: ${text}...`;
     el.classList.remove("hidden");
 }
 function hidePartialTranscript() {
     document.getElementById("partial-transcript")?.classList.add("hidden");
 }
+function hideHistoryPanel() {
+    document.getElementById("history-panel")?.classList.add("hidden");
+}
 function showDreamingBubble() {
     isDreamingBubble = true;
     clearHideTimer(); // niente auto-hide: segue lo stato reale del dreaming
+    hideHistoryPanel(); // stessa area della bolla, vedi showReplyBubble
     const bubbleEl = document.getElementById("bubble");
     const textEl = document.getElementById("bubble-text");
     const badgeEl = document.getElementById("bubble-badge");

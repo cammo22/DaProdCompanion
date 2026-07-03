@@ -30,7 +30,13 @@ import {
   showPartialTranscript,
 } from "./windows/avatar-window";
 import { createChatWindow, notifyNewExchange, showChatWindow } from "./windows/chat-window";
-import { createGraphWindow, notifyGraphUpdated, notifyQuantumStatusChanged, showGraphWindow } from "./windows/graph-window";
+import {
+  createGraphWindow,
+  notifyGraphUpdated,
+  notifyQuantumInsight,
+  notifyQuantumStatusChanged,
+  showGraphWindow,
+} from "./windows/graph-window";
 import { showOnboardingWindow } from "./windows/onboarding-window";
 import { createSettingsWindow } from "./windows/settings-window";
 import { createTray } from "./tray";
@@ -127,6 +133,12 @@ function handleBrainEvent(event: BrainEvent): void {
     case "quantum-finished":
       notifyQuantumStatusChanged();
       break;
+    case "quantum-insight": {
+      const insight = typeof event.insight === "string" ? event.insight : "";
+      const iteration = typeof event.iteration === "number" ? event.iteration : 0;
+      if (insight) notifyQuantumInsight(insight, iteration);
+      break;
+    }
     default:
       break;
   }

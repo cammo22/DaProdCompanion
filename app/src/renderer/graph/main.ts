@@ -51,6 +51,7 @@ declare const graphAPI: {
   stopQuantum(): Promise<QuantumStatus>;
   getQuantumStatus(): Promise<QuantumStatus>;
   onQuantumStatusChanged(callback: () => void): void;
+  onQuantumInsight(callback: (insight: string, iteration: number) => void): void;
 };
 
 interface D3Force {
@@ -374,6 +375,19 @@ async function refreshDreamTimer(): Promise<void> {
   }
 }
 
+// Ultimo insight ricevuto (vedi onQuantumInsight in init()): la sola scritta
+// "Attiva — iterazione N" non diceva mai COSA il modello stesse facendo in
+// quell'iterazione, mentre brain_service quell'informazione la genera gia'
+// (campo 'insight' di ogni ciclo Quantum) — semplicemente non arrivava mai
+// fino a qui.
+let lastQuantumInsight: string | null = null;
+
+function renderQuantumStatusText(active: boolean, iterationsDone: number): string {
+  if (!active) return "";
+  const base = `Attiva — iterazione ${iterationsDone}. Ascolto e sogni normali sono in pausa.`;
+  return lastQuantumInsight ? `${base}\nUltimo collegamento: ${lastQuantumInsight}` : base;
+}
+
 async function refreshQuantumStatus(): Promise<void> {
   const button = document.getElementById("quantum-button") as HTMLButtonElement | null;
   const statusEl = document.getElementById("quantum-status");
@@ -383,9 +397,8 @@ async function refreshQuantumStatus(): Promise<void> {
     button.textContent = status.active ? "Ferma Quantum" : "Modalita' Quantum";
     button.classList.toggle("active", status.active);
     statusEl.classList.toggle("hidden", !status.active);
-    if (status.active) {
-      statusEl.textContent = `Attiva — iterazione ${status.iterationsDone}. Ascolto e sogni normali sono in pausa.`;
-    }
+    if (!status.active) lastQuantumInsight = null;
+    statusEl.textContent = renderQuantumStatusText(status.active, status.iterationsDone);
   } catch (err) {
     console.warn("Impossibile leggere lo stato della modalita' Quantum:", err);
   }
@@ -429,6 +442,10 @@ function init(): void {
 
   refreshQuantumStatus();
   graphAPI.onQuantumStatusChanged(() => refreshQuantumStatus());
+  graphAPI.onQuantumInsight((insight) => {
+    lastQuantumInsight = insight;
+    refreshQuantumStatus();
+  });
   // Fallback a intervalli mentre e' attiva: gli eventi push coprono
   // avvio/fine, ma il contatore delle iterazioni cresce silenziosamente nel
   // mezzo senza un evento dedicato per ognuna.

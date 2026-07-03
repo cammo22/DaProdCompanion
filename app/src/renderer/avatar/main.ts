@@ -115,6 +115,7 @@ function showReplyBubble(payload: BubblePayload): void {
   isDreamingBubble = false;
   currentBubbleDurationMs = payload.suggestedDurationMs;
   hidePartialTranscript(); // la risposta vera e' arrivata, l'anteprima non serve piu'
+  hideHistoryPanel(); // stessa area della bolla: senza chiuderlo, la nuova risposta resterebbe nascosta dietro
 
   const bubbleEl = document.getElementById("bubble");
   const textEl = document.getElementById("bubble-text");
@@ -150,6 +151,7 @@ function showPartialTranscript(text: string): void {
     hidePartialTranscript();
     return;
   }
+  hideHistoryPanel(); // stessa area della bolla, vedi showReplyBubble
   el.textContent = `Tu: ${text}...`;
   el.classList.remove("hidden");
 }
@@ -158,9 +160,14 @@ function hidePartialTranscript(): void {
   document.getElementById("partial-transcript")?.classList.add("hidden");
 }
 
+function hideHistoryPanel(): void {
+  document.getElementById("history-panel")?.classList.add("hidden");
+}
+
 function showDreamingBubble(): void {
   isDreamingBubble = true;
   clearHideTimer(); // niente auto-hide: segue lo stato reale del dreaming
+  hideHistoryPanel(); // stessa area della bolla, vedi showReplyBubble
 
   const bubbleEl = document.getElementById("bubble");
   const textEl = document.getElementById("bubble-text");

@@ -180,6 +180,7 @@ html, body {
   font-size: 11px;
   color: #d9b3ff;
   line-height: 1.4;
+  white-space: pre-line;
 }
 
 .quantum-status.hidden {

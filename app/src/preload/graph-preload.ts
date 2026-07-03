@@ -23,4 +23,9 @@ contextBridge.exposeInMainWorld("graphAPI", {
   onQuantumStatusChanged: (callback: () => void): void => {
     ipcRenderer.on("graph:quantum-status-changed", () => callback());
   },
+  onQuantumInsight: (callback: (insight: string, iteration: number) => void): void => {
+    ipcRenderer.on("graph:quantum-insight", (_event, payload: { insight: string; iteration: number }) =>
+      callback(payload.insight, payload.iteration),
+    );
+  },
 });
