@@ -1,10 +1,9 @@
 # DaProdCompanion
 
-Companion AI desktop 100% locale, in italiano: avatar sempre in primo piano, memoria multi-livello
-con "dreaming" notturno, grafo di conoscenza esplorabile ("cervellone"), voce (wake-word,
-push-to-talk, modalita' live), tool-use ristretto per il modello, e una modalita' "Quantum" in cui
-il companion espande da solo il proprio grafo. Nessun dato lascia il PC: LLM, TTS e STT girano
-tutti tramite Ollama e modelli locali.
+Un companion AI desktop 100% locale, in italiano: un avatar che vive sul tuo desktop, ti ascolta,
+ti risponde, si ricorda di te nel tempo e — quando non gli parli — pensa comunque da solo a quello
+che ha imparato. Nessun dato lascia il PC: il cervello (Ollama), la voce (Kokoro) e l'orecchio
+(faster-whisper) girano tutti in locale.
 
 Architettura di riferimento (scritta prima di iniziare, non tutta ancora attuale):
 [docs/architecture/architettura.md](docs/architecture/architettura.md).
@@ -15,34 +14,49 @@ Prima release taggata, pensata per essere provata e per raccogliere feedback —
 prodotto "finito e inscatolato": manca un installer (si avvia da sorgente con `uv`/`npm`), manca
 la Fase Webcam/riconoscimento facciale, e ci sono ancora bug noti in fase di rifinitura.
 
-Quello che c'e' e funziona:
+| Area | Cosa c'e' |
+|---|---|
+| **Core** | Sandboxing filesystem obbligatorio, SQLite (WAL + `sqlite-vec`), loop di conversazione via Ollama |
+| **Avatar** | Overlay trasparente sempre in primo piano, stati visivi (ascolto/pensa/parla/sogna/sente il proprio nome), trascinabile, pulsanti compatti, anteprima live di quello che dici, bolla che mostra sempre sia il messaggio ricevuto sia la risposta, cronologia consultabile |
+| **Voce** | Ascolto continuo con wake-word configurabile, finestra di conversazione senza ripetere il nome, push-to-talk, modalita' live, calibrazione del riconoscimento nome, filtro allucinazioni Whisper |
+| **Memoria e dreaming** | Consolidamento periodico (notturno / per inattivita' / per dimensione) di memoria episodica -> semantica + grafo, sospeso mentre ascolta/registra, annuncio (testo + voce) di cosa ha sognato |
+| **Cervellone (grafo)** | Fisica personalizzabile (repulsione/attrazione), filtri per tipo entita' e nodi isolati, dimensione nodi in base ai collegamenti, timer sogni |
+| **Export in markdown** | Ogni entita' diventa una nota con frontmatter YAML (stile vault Obsidian), diario dei sogni, pagina "chi sono" auto-scritta |
+| **Tool-use ristretto** | Il modello puo' salvare una memoria al volo o interrogare il grafo durante la chat — niente esecuzione di codice, niente filesystem oltre al wrapper di sandboxing |
+| **Modalita' Quantum** | Vedi sotto |
+| **Impostazioni** | Nome del companion, scelta del modello Ollama tra quelli gia' scaricati, voce/velocita' TTS, microfono, calibrazione wake-word, reset completo |
 
-- **Core**: sandboxing filesystem obbligatorio, SQLite (WAL, `sqlite-vec` per gli embedding),
-  loop di conversazione con Ollama.
-- **Avatar**: overlay trasparente sempre in primo piano, stati visivi (ascolto/pensa/parla/sogna/
-  sente il proprio nome), pulsanti compatti (muto, registra, live, salta, cronologia),
-  trascinabile, anteprima live di quello che stai dicendo, bolla che mostra sempre sia il
-  messaggio ricevuto sia la risposta.
-- **Voce**: ascolto continuo con wake-word configurabile (nome del companion), finestra di
-  conversazione senza dover ripetere il nome, push-to-talk, modalita' live, calibrazione del
-  riconoscimento del nome dal menu Impostazioni, filtro delle allucinazioni di Whisper.
-- **Memoria e dreaming**: consolidamento periodico (cron notturno, per inattivita', per
-  dimensione) della memoria episodica in memoria semantica + grafo di conoscenza, sospeso
-  automaticamente mentre stai parlando o registrando. Il companion annuncia (testo + voce) cosa
-  ha sognato.
-- **Cervellone (grafo)**: pannello con forza dei nodi personalizzabile (repulsione/attrazione),
-  filtri per tipo di entita' e per nodi isolati, dimensione dei nodi in base ai collegamenti,
-  timer dell'ultimo/prossimo sogno.
-- **Export in markdown**: ogni entita' del grafo diventa una nota con frontmatter YAML (stile
-  vault Obsidian), oltre a un diario dei sogni e una pagina "chi sono" auto-scritta dal companion.
-- **Tool-use ristretto**: il modello puo' salvare una memoria al volo o interrogare il grafo
-  durante la conversazione — niente esecuzione di codice, niente accesso al filesystem oltre al
-  wrapper di sandboxing.
-- **Modalita' Quantum**: ciclo autonomo (fino a 20 iterazioni) in cui il companion esplora e
-  arricchisce da solo il proprio grafo, esclusivo con ascolto e dreaming normale.
-- **Impostazioni**: nome del companion, scelta del modello Ollama da un menu popolato dai modelli
-  gia' scaricati in locale, voce/velocita' TTS, microfono, calibrazione wake-word, reset completo
-  della memoria (DB + vault markdown).
+## La modalita' Quantum, spiegata bene
+
+Il dreaming normale e' *reattivo*: si sveglia quando smetti di parlare, o quando passa troppo
+tempo, e riassume quello che e' successo. La modalita' Quantum e' l'opposto: e' il companion che
+decide da solo di mettersi a **pensare al proprio grafo di conoscenza senza che sia successo
+niente di nuovo** — non riassume una conversazione, esplora quello che sa gia' e cerca di
+collegarlo meglio.
+
+Come funziona, un ciclo alla volta:
+
+1. **La attivi tu** dal pulsante "Modalita' Quantum" nel pannello del cervellone.
+2. Ad ogni iterazione (fino a **20** per attivazione, un tetto di sicurezza) il companion guarda
+   il grafo attuale — quali entita' esistono, come sono collegate, quali sono isolate — e prova a
+   trovare **un solo** collegamento nuovo e plausibile, oppure ad aggiungere **una sola** entita'
+   nuova strettamente legata a una gia' esistente. Gli viene detto esplicitamente di non
+   inventare nulla che non sia deducibile dal grafo stesso.
+3. Ogni iterazione produce un piccolo "insight" (una frase su cosa ha appena collegato e perche'),
+   visibile nel pannello del cervellone mentre gira.
+4. **Mentre e' attiva, il companion non fa nient'altro**: l'ascolto vocale e' mutato e il dreaming
+   normale e' sospeso, cosi' non competono per lo stesso modello Ollama ne' per lo stesso
+   microfono. Una richiesta in chat testuale durante questo periodo riceve una risposta di
+   cortesia ("sto rielaborando i miei ricordi") invece di una vera risposta.
+5. **La fermi tu** (o si ferma da sola dopo 20 iterazioni). Prima di uscire davvero, il companion
+   scrive una breve **nota di handoff**: cosa ha esplorato, cosa varrebbe la pena approfondire la
+   prossima volta. La legge lui stesso all'inizio della successiva attivazione, cosi' non riparte
+   sempre da zero — e' l'unica cosa che sopravvive tra un'attivazione Quantum e l'altra, oltre al
+   grafo stesso.
+
+In breve: il dreaming e' "cosa ho appena vissuto", Quantum e' "cosa posso capire meglio di quello
+che gia' so", ed e' pensata per essere un'attivita' che *scegli* di fargli fare (tipo lasciarlo
+"studiare" per un po'), non qualcosa che gira in automatico in sottofondo.
 
 ## Avvio (uso normale, dopo la prima installazione)
 

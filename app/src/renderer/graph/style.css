@@ -176,6 +176,13 @@ html, body {
   box-shadow: 0 0 10px rgba(220, 60, 220, 0.6);
 }
 
+.quantum-explainer {
+  font-size: 11px;
+  color: #9a9ab0;
+  line-height: 1.4;
+  margin: 0;
+}
+
 .quantum-status {
   font-size: 11px;
   color: #d9b3ff;
