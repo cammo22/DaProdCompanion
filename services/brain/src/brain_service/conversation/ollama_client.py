@@ -22,11 +22,21 @@ class OllamaClient:
     ) -> dict:
         """Come chat(), ma restituisce il messaggio completo (non solo il
         testo): serve quando e' presente 'tools', perche' la risposta puo'
-        contenere 'tool_calls' invece di (o oltre a) del testo."""
+        contenere 'tool_calls' invece di (o oltre a) del testo.
+
+        'think': False disattiva il ragionamento esteso sui modelli che lo
+        supportano (es. qwen3.5, che l'utente puo' selezionare dal menu
+        Impostazioni): per una chat da compagnia non serve chain-of-thought,
+        e senza, un modello pensante (a) rischia di far trapelare i token di
+        ragionamento nel testo mostrato all'utente e (b) e' molto piu' lento.
+        Sui modelli non pensanti (gemma) Ollama ignora l'opzione, quindi e'
+        sicura a prescindere dal modello configurato. Stessa scelta gia' fatta
+        per dreaming e Quantum."""
         payload = {
             "model": model,
             "messages": messages,
             "stream": False,
+            "think": False,
             "options": {"num_ctx": num_ctx},
         }
         if tools:

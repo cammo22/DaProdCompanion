@@ -32,6 +32,20 @@ _EMOJI_PATTERN = re.compile(
 )
 
 
+_THINK_BLOCK_PATTERN = re.compile(r"<think>.*?</think>", flags=re.DOTALL | re.IGNORECASE)
+
+
+def strip_reasoning(text: str) -> str:
+    """Rimuove eventuali blocchi <think>...</think> dal testo generato: con
+    'think': False (vedi ollama_client) i modelli pensanti non dovrebbero
+    emetterli, ma alcuni li includono comunque nel contenuto a seconda della
+    versione — questa e' la rete di sicurezza perche' il ragionamento interno
+    non finisca MAI nel messaggio mostrato/letto all'utente. Applicata al
+    testo della risposta prima di tutto il resto (a differenza di strip_emoji/
+    strip_markdown_emphasis, che valgono solo per l'input vocale)."""
+    return _THINK_BLOCK_PATTERN.sub("", text).strip()
+
+
 def strip_emoji(text: str) -> str:
     """Rimuove le emoji dal testo da inviare alla sintesi vocale."""
     without_emoji = _EMOJI_PATTERN.sub("", text)

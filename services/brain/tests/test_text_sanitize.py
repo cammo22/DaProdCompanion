@@ -7,12 +7,34 @@ from brain_service.conversation.text_sanitize import (
     prepare_for_speech,
     strip_emoji,
     strip_markdown_emphasis,
+    strip_reasoning,
 )
 
 
 def test_correct_bot_name_fixes_one_letter_typo():
     text = "Mi chiamo Babbaxone! Sono felice di conoscerti."
     assert correct_bot_name(text, "Babbasone") == "Mi chiamo Babbasone! Sono felice di conoscerti."
+
+
+def test_strip_reasoning_removes_think_block():
+    text = "<think>L'utente saluta, rispondo caldo.</think>Ciao! Come stai?"
+    assert strip_reasoning(text) == "Ciao! Come stai?"
+
+
+def test_strip_reasoning_handles_multiline_and_is_case_insensitive():
+    text = "<THINK>\nragionamento\nsu piu' righe\n</THINK>\nEcco la risposta."
+    assert strip_reasoning(text) == "Ecco la risposta."
+
+
+def test_strip_reasoning_leaves_normal_text_untouched():
+    text = "Nessun ragionamento qui, solo una risposta."
+    assert strip_reasoning(text) == text
+
+
+def test_strip_reasoning_does_not_touch_lone_angle_brackets():
+    # Un '<' o '>' isolato (es. in una formula) non deve essere toccato.
+    text = "Se 3 < 5 allora tutto ok."
+    assert strip_reasoning(text) == text
 
 
 def test_correct_bot_name_leaves_correct_name_untouched():

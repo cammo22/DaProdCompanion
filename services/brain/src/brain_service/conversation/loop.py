@@ -16,7 +16,7 @@ from companion_shared.config import Settings
 from ..memory import episodic, semantic
 from .ollama_client import OllamaClient
 from .prompt_templates import build_system_prompt
-from .text_sanitize import correct_bot_name, prepare_for_speech
+from .text_sanitize import correct_bot_name, prepare_for_speech, strip_reasoning
 from .tools import run_chat_with_tools
 from .tts_client import TtsClient
 
@@ -94,7 +94,10 @@ async def handle_user_message(
         conn=conn,
         embedding_model=settings.embedding_model_tag,
     )
-    reply = correct_bot_name(reply, settings.bot_name)
+    # strip_reasoning PRIMA di correct_bot_name: cosi' un eventuale blocco
+    # <think> non finisce ne' nel testo mostrato, ne' salvato in episodic, ne'
+    # letto dal TTS.
+    reply = correct_bot_name(strip_reasoning(reply), settings.bot_name)
 
     episodic.log_event(conn, event_type="bot_reply", content=reply, source="brain")
 
