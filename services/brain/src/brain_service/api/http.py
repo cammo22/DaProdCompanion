@@ -96,6 +96,7 @@ async def lifespan(app: FastAPI):
         sandbox_root=sandbox_root,
         dreaming_scheduler=dreaming_scheduler,
         stt=stt,
+        bot_name=settings.bot_name,
         on_event=event_bus.publish,
     )
 

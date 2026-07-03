@@ -92,6 +92,12 @@ declare class ForceGraph {
   height(h: number): this;
   d3Force(forceName: string): D3Force | undefined;
   d3ReheatSimulation(): this;
+  // Ridisegna il canvas SENZA rilanciare la simulazione fisica: force-graph
+  // di default mette in pausa il ridisegno quando il grafo e' fermo
+  // (autoPauseRedraw), quindi per un cambio puramente visivo (mostra/nascondi
+  // nomi) serve un "risveglio" del loop di rendering — ma d3ReheatSimulation
+  // rimetterebbe in moto i nodi, resumeAnimation no.
+  resumeAnimation(): this;
 }
 
 const EDGE_TYPE_LABELS: Record<string, string> = {
@@ -316,9 +322,10 @@ function initShowLabelsToggle(): void {
   showLabels = checkbox.checked;
   checkbox.addEventListener("change", () => {
     showLabels = checkbox.checked;
-    // Il canvas si ridisegna da solo, ma se la simulazione si e' fermata
-    // (grafo stabile) serve un piccolo reheat per vedere subito il cambio.
-    graph?.d3ReheatSimulation();
+    // resumeAnimation (NON d3ReheatSimulation): ridisegna con la nuova
+    // impostazione dei nomi senza toccare le posizioni dei nodi, cosi' non
+    // "rimbalzano" come appena spawnati — era esattamente il fastidio segnalato.
+    graph?.resumeAnimation();
   });
 }
 

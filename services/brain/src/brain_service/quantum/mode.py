@@ -40,38 +40,22 @@ logger = logging.getLogger("brain")
 _MAX_ITERATIONS = 20
 _HANDOFF_FILE = Path("memoria") / "quantum_handoff.md"
 
+# Schema PIATTO: una sola relazione tra due nodi per iterazione, campi diretti,
+# nessuna indirezione con temp_id, nessun array annidato. Un modello piccolo
+# (es. gemma e2b, qwen 4b) riempie 6 campi chiari molto piu' affidabilmente di
+# uno schema con liste di oggetti annidati — era il motivo per cui la modalita'
+# Quantum "non capiva un cazzo" e falliva il JSON iterazione dopo iterazione.
 _ITERATION_SCHEMA = {
     "type": "object",
     "properties": {
-        "insight": {"type": "string"},
-        "entities": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "temp_id": {"type": "string"},
-                    "type": {"type": "string", "enum": ENTITY_TYPES},
-                    "label": {"type": "string"},
-                    "tags": {"type": "array", "items": {"type": "string"}},
-                    "confidence": {"type": "number"},
-                },
-                "required": ["temp_id", "type", "label", "tags", "confidence"],
-            },
-        },
-        "relations": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "source_temp_id": {"type": "string"},
-                    "target_temp_id": {"type": "string"},
-                    "type": {"type": "string", "enum": EDGE_TYPES},
-                },
-                "required": ["source_temp_id", "target_temp_id", "type"],
-            },
-        },
+        "da": {"type": "string"},
+        "tipo_da": {"type": "string", "enum": ENTITY_TYPES},
+        "relazione": {"type": "string", "enum": EDGE_TYPES},
+        "a": {"type": "string"},
+        "tipo_a": {"type": "string", "enum": ENTITY_TYPES},
+        "azione": {"type": "string"},
     },
-    "required": ["insight", "entities", "relations"],
+    "required": ["da", "tipo_da", "relazione", "a", "tipo_a", "azione"],
 }
 
 _HANDOFF_SCHEMA = {
@@ -98,42 +82,49 @@ def _write_handoff_note(note: str, *, guard: FilesystemGuard, sandbox_root: Path
         f.write(note.strip() + "\n")
 
 
-def _build_iteration_prompt(*, nodes: list[dict], edges: list[dict], handoff_note: str) -> str:
+# Cap sulle righe di grafo passate nel prompt: per tenere il contesto basso e
+# la comprensione alta, non serve dumpare TUTTE le relazioni ad ogni giro.
+_MAX_GRAPH_LINES = 40
+_MAX_LABELS = 60
+
+
+def _build_iteration_prompt(*, bot_name: str, nodes: list[dict], edges: list[dict], handoff_note: str) -> str:
     node_by_id = {n["id"]: n for n in nodes}
+    labels = [n["label"] for n in nodes][:_MAX_LABELS]
+
     graph_lines = []
-    for edge in edges:
+    for edge in edges[-_MAX_GRAPH_LINES:]:
         source = node_by_id.get(edge["source_node_id"])
         target = node_by_id.get(edge["target_node_id"])
         if source and target:
-            graph_lines.append(f"- {source['label']} --{edge['edge_type']}--> {target['label']}")
-    isolated = [n["label"] for n in nodes if not any(
-        e["source_node_id"] == n["id"] or e["target_node_id"] == n["id"] for e in edges
-    )]
+            graph_lines.append(f"{source['label']} {edge['edge_type']} {target['label']}")
 
+    isolated = [
+        n["label"]
+        for n in nodes
+        if not any(e["source_node_id"] == n["id"] or e["target_node_id"] == n["id"] for e in edges)
+    ][:20]
+
+    # Istruzione corta, diretta, con esempio concreto. Niente giri di parole:
+    # il modello deve capire in due righe cosa fare.
     parts = [
-        "Sei in 'modalita' Quantum': un ciclo autonomo in cui esplori e arricchisci il tuo grafo "
-        "di conoscenza da solo, senza che l'utente ti stia parlando in questo momento. Il tuo "
-        "compito e' trovare UN collegamento nuovo, plausibile e utile tra entita' che gia' "
-        "conosci (o aggiungere una singola entita' nuova strettamente collegata a una esistente), "
-        "usando solo cio' che sai davvero dal grafo qui sotto: NON INVENTARE persone, eventi o "
-        "fatti che non siano deducibili da quello che segue.",
+        f"Sei {bot_name}. Stai riordinando quello che sai. Aggiungi UN SOLO collegamento nuovo tra "
+        "due cose che gia' conosci (o collega una cosa isolata a una gia' collegata).",
         "",
-        "Grafo attuale (relazioni note):",
-        "\n".join(graph_lines) if graph_lines else "(nessuna relazione ancora)",
+        "Cose che conosci: " + (", ".join(labels) if labels else "(niente ancora)"),
     ]
+    if graph_lines:
+        parts.append("\nCollegamenti gia' fatti:\n" + "\n".join(graph_lines))
     if isolated:
-        parts.append("\nEntita' isolate, senza nessuna connessione (buoni candidati da collegare):")
-        parts.append(", ".join(isolated))
+        parts.append("\nCose isolate da collegare: " + ", ".join(isolated))
     if handoff_note:
-        parts.append(f"\nNota lasciata dall'ultimo ciclo Quantum: {handoff_note}")
+        parts.append("\nAppunto lasciato la volta scorsa: " + handoff_note)
     parts.append(
-        "\nProduci un JSON con: 'insight' (una frase su cosa hai appena collegato o aggiunto e "
-        "perche'), 'entities' (di solito 0 o 1 nuova entita', con 'temp_id' arbitrario tipo 'e1', "
-        "'tags' e 'confidence' come nel consolidamento normale — riusa il temp_id anche per "
-        "un'entita' GIA' esistente se ti serve referenziarla in una relazione, scegliendo un nome "
-        "identico alla label esistente), 'relations' (di solito 1 relazione nuova). Se davvero non "
-        "trovi nulla di plausibile da collegare, lascia entrambe le liste vuote e spiegalo in "
-        "'insight'."
+        "\nRispondi con: da, tipo_da, relazione, a, tipo_a, azione (una frase su cosa hai collegato)."
+        "\n- relazione: conosce, riguarda, e_avvenuto_in, e_collegato_a"
+        "\n- tipo_da / tipo_a: Persona, Evento, Concetto, Luogo"
+        "\nUsa nomi ESATTI dalla lista qui sopra quando colleghi cose che gia' esistono. "
+        "Se davvero non trovi nulla di sensato, metti 'da' e 'a' uguali."
     )
     return "\n".join(parts)
 
@@ -150,12 +141,14 @@ class QuantumMode:
         sandbox_root: Path,
         dreaming_scheduler: DreamingScheduler,
         stt: SttClient,
+        bot_name: str = "",
         on_event: Callable[[str, dict], None] | None = None,
     ) -> None:
         self._conn = conn
         self._ollama_host = ollama_host
         self._brain_model_tag = brain_model_tag
         self._num_ctx = num_ctx
+        self._bot_name = bot_name
         self._guard = guard
         self._sandbox_root = sandbox_root
         self._dreaming_scheduler = dreaming_scheduler
@@ -215,7 +208,9 @@ class QuantumMode:
     async def _iterate(self, client: httpx.AsyncClient) -> None:
         nodes, edges = get_graph_snapshot(self._conn)
         handoff_note = _read_handoff_note(guard=self._guard, sandbox_root=self._sandbox_root)
-        prompt = _build_iteration_prompt(nodes=nodes, edges=edges, handoff_note=handoff_note)
+        prompt = _build_iteration_prompt(
+            bot_name=self._bot_name, nodes=nodes, edges=edges, handoff_note=handoff_note
+        )
 
         response = await client.post(
             "/api/chat",
@@ -224,17 +219,10 @@ class QuantumMode:
                 "messages": [{"role": "user", "content": prompt}],
                 "stream": False,
                 "format": _ITERATION_SCHEMA,
-                # 'think': False come in consolidation.py: qui serve solo estrarre
-                # entita'/relazioni in JSON, non ragionare a lungo. Senza, un
-                # modello "pensante" (es. qwen3.5) puo' consumare gran parte del
-                # budget in token di ragionamento e troncare il JSON.
                 "think": False,
-                # num_predict alto come in consolidation.py: senza, il default di
-                # Ollama tronca a meta' schema (osservato con 512: ogni singola
-                # iterazione falliva il parsing JSON), specialmente perche' il
-                # modello puo' impiegare parte del budget in ragionamento interno
-                # prima di arrivare al JSON vero e proprio.
-                "options": {"num_ctx": self._num_ctx, "num_predict": 2048},
+                # Lo schema piatto produce output minuscolo: num_predict basso
+                # basta e avanza, non serve piu' il tetto alto anti-troncamento.
+                "options": {"num_ctx": self._num_ctx, "num_predict": 512},
             },
         )
         response.raise_for_status()
@@ -244,34 +232,35 @@ class QuantumMode:
             logger.warning("Quantum: risposta non era JSON valido, salto questa iterazione")
             return
 
-        source = f"Quantum del {datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
-        temp_id_to_node_id: dict[str, int] = {}
-        for entity in parsed.get("entities", []):
-            node_id = find_or_create_node(
-                self._conn,
-                node_type=entity["type"],
-                label=entity["label"],
-                tags=entity.get("tags", []),
-                confidence=entity.get("confidence"),
-                source=source,
+        self._apply_iteration(parsed)
+
+    def _apply_iteration(self, parsed: dict) -> None:
+        """Applica una risposta piatta (da/relazione/a) al grafo: crea i due
+        nodi (find_or_create dedup per label) e l'arco. Isolata dal resto per
+        essere testata senza rete."""
+        da = str(parsed.get("da", "")).strip()
+        a = str(parsed.get("a", "")).strip()
+        relazione = str(parsed.get("relazione", "")).strip()
+        azione = str(parsed.get("azione", "")).strip()
+
+        # 'da' e 'a' uguali (o vuoti) = il modello non ha trovato nulla di
+        # sensato da collegare in questo giro: non e' un errore, solo un no-op.
+        if da and a and da.lower() != a.lower() and relazione in EDGE_TYPES:
+            source = f"Quantum del {datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+            source_id = find_or_create_node(
+                self._conn, node_type=str(parsed.get("tipo_da", "Concetto")), label=da, source=source
             )
-            temp_id_to_node_id[entity["temp_id"]] = node_id
+            target_id = find_or_create_node(
+                self._conn, node_type=str(parsed.get("tipo_a", "Concetto")), label=a, source=source
+            )
+            find_or_create_edge(
+                self._conn, source_node_id=source_id, target_node_id=target_id, edge_type=relazione
+            )
+            if self._on_event:
+                self._on_event("graph-updated", {})
 
-        graph_changed = bool(parsed.get("entities"))
-        for relation in parsed.get("relations", []):
-            source_id = temp_id_to_node_id.get(relation["source_temp_id"])
-            target_id = temp_id_to_node_id.get(relation["target_temp_id"])
-            if source_id is None or target_id is None:
-                continue
-            find_or_create_edge(self._conn, source_node_id=source_id, target_node_id=target_id, edge_type=relation["type"])
-            graph_changed = True
-
-        if graph_changed and self._on_event:
-            self._on_event("graph-updated", {})
-
-        insight = parsed.get("insight", "").strip()
-        if insight and self._on_event:
-            self._on_event("quantum-insight", {"insight": insight, "iteration": self._iterations_done + 1})
+        if azione and self._on_event:
+            self._on_event("quantum-insight", {"insight": azione, "iteration": self._iterations_done + 1})
 
     async def _write_final_handoff(self, client: httpx.AsyncClient) -> None:
         try:

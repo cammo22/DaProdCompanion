@@ -220,9 +220,10 @@ function initShowLabelsToggle() {
     showLabels = checkbox.checked;
     checkbox.addEventListener("change", () => {
         showLabels = checkbox.checked;
-        // Il canvas si ridisegna da solo, ma se la simulazione si e' fermata
-        // (grafo stabile) serve un piccolo reheat per vedere subito il cambio.
-        graph?.d3ReheatSimulation();
+        // resumeAnimation (NON d3ReheatSimulation): ridisegna con la nuova
+        // impostazione dei nomi senza toccare le posizioni dei nodi, cosi' non
+        // "rimbalzano" come appena spawnati — era esattamente il fastidio segnalato.
+        graph?.resumeAnimation();
     });
 }
 function initForceSlider(sliderId, valueId, apply) {
