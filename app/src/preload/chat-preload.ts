@@ -10,10 +10,11 @@ export interface ConversationTurn {
 export interface NewExchangePayload {
   userMessage: string;
   reply: string;
+  usedMemory: boolean;
 }
 
 contextBridge.exposeInMainWorld("chatAPI", {
-  sendMessage: (message: string): Promise<{ reply: string; audioUrl: string | null }> =>
+  sendMessage: (message: string): Promise<{ reply: string; audioUrl: string | null; usedMemory: boolean }> =>
     ipcRenderer.invoke("chat:send", message),
   notifySpeakingStart: (): void => ipcRenderer.send("audio:speaking-start"),
   notifySpeakingEnd: (): void => ipcRenderer.send("audio:speaking-end"),

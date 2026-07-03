@@ -115,7 +115,7 @@ function handleBrainEvent(event: BrainEvent): void {
       // La chat testuale mostra anche gli scambi partiti dalla voce (stessa
       // conversazione, solo un altro modo di parlare), ma non ne riproduce
       // l'audio: se lo facesse, suonerebbe due volte (gia' in corso sull'avatar).
-      if (userMessage) notifyNewExchange(userMessage, reply);
+      if (userMessage) notifyNewExchange(userMessage, reply, usedMemory);
       break;
     }
     case "partial-transcript": {

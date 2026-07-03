@@ -1,11 +1,28 @@
 let currentAudio = null;
-function appendMessage(text, sender) {
+function formatMessageTime(date) {
+    return date.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+}
+function appendMessage(text, sender, options = {}) {
     const container = document.getElementById("messages");
     if (!container)
         return;
     const el = document.createElement("div");
     el.className = `message message-${sender}`;
-    el.textContent = text;
+    const textEl = document.createElement("div");
+    textEl.className = "message-text";
+    textEl.textContent = text;
+    el.appendChild(textEl);
+    const meta = document.createElement("div");
+    meta.className = "message-meta";
+    meta.textContent = formatMessageTime(options.time ?? new Date());
+    if (options.usedMemory) {
+        const badge = document.createElement("span");
+        badge.className = "message-memory-badge";
+        badge.title = "Ha usato la memoria";
+        badge.textContent = "🧠";
+        meta.appendChild(badge);
+    }
+    el.appendChild(meta);
     container.appendChild(el);
     container.scrollTop = container.scrollHeight;
 }
@@ -49,7 +66,9 @@ async function loadHistory() {
     try {
         const turns = await chatAPI.getHistory();
         for (const turn of turns) {
-            appendMessage(turn.content, turn.eventType === "user_message" ? "user" : "bot");
+            appendMessage(turn.content, turn.eventType === "user_message" ? "user" : "bot", {
+                time: new Date(turn.createdAt),
+            });
         }
     }
     catch (err) {
@@ -73,8 +92,8 @@ function init() {
         input.value = "";
         input.disabled = true;
         try {
-            const { reply, audioUrl } = await chatAPI.sendMessage(message);
-            appendMessage(reply, "bot");
+            const { reply, audioUrl, usedMemory } = await chatAPI.sendMessage(message);
+            appendMessage(reply, "bot", { usedMemory });
             if (audioUrl)
                 playAudio(audioUrl);
         }
@@ -89,9 +108,9 @@ function init() {
     skipButton.addEventListener("click", () => skipAudio());
     // Scambi innescati dalla voce: l'audio lo riproduce gia' l'avatar (vedi
     // handleBrainEvent in index.ts), qui si mostra solo il testo.
-    chatAPI.onNewExchange(({ userMessage, reply }) => {
+    chatAPI.onNewExchange(({ userMessage, reply, usedMemory }) => {
         appendMessage(userMessage, "user");
-        appendMessage(reply, "bot");
+        appendMessage(reply, "bot", { usedMemory });
     });
     input.focus();
 }

@@ -13,6 +13,7 @@ import { flashReply, setAvatarState } from "../windows/avatar-window";
 export interface ChatIpcResult {
   reply: string;
   audioUrl: string | null;
+  usedMemory: boolean;
 }
 
 export function registerChatHandlers(): void {
@@ -28,7 +29,7 @@ export function registerChatHandlers(): void {
       flashReply(reply, usedMemory, bubbleDurationMs);
 
       const audioUrl = audioPath ? pathToFileURL(audioPath).href : null;
-      return { reply, audioUrl };
+      return { reply, audioUrl, usedMemory };
     } catch (err) {
       setAvatarState("idle");
       throw err;

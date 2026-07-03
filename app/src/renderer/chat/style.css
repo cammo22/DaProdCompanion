@@ -24,8 +24,6 @@ html, body {
   border-radius: 12px;
   font-size: 16px;
   line-height: 1.45;
-  white-space: pre-wrap;
-  word-wrap: break-word;
 }
 
 .message-user {
@@ -40,6 +38,24 @@ html, body {
   background: #2a2b40;
   color: #f0f0f5;
   border-bottom-left-radius: 2px;
+}
+
+.message-text {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.message-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 11px;
+  opacity: 0.6;
+}
+
+.message-memory-badge {
+  font-size: 11px;
 }
 
 .chat-form {

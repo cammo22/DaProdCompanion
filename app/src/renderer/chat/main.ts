@@ -14,10 +14,11 @@ interface ConversationTurn {
 interface NewExchangePayload {
   userMessage: string;
   reply: string;
+  usedMemory: boolean;
 }
 
 declare const chatAPI: {
-  sendMessage(message: string): Promise<{ reply: string; audioUrl: string | null }>;
+  sendMessage(message: string): Promise<{ reply: string; audioUrl: string | null; usedMemory: boolean }>;
   notifySpeakingStart(): void;
   notifySpeakingEnd(): void;
   getHistory(): Promise<ConversationTurn[]>;
@@ -26,12 +27,33 @@ declare const chatAPI: {
 
 let currentAudio: HTMLAudioElement | null = null;
 
-function appendMessage(text: string, sender: "user" | "bot"): void {
+function formatMessageTime(date: Date): string {
+  return date.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+}
+
+function appendMessage(text: string, sender: "user" | "bot", options: { time?: Date; usedMemory?: boolean } = {}): void {
   const container = document.getElementById("messages");
   if (!container) return;
   const el = document.createElement("div");
   el.className = `message message-${sender}`;
-  el.textContent = text;
+
+  const textEl = document.createElement("div");
+  textEl.className = "message-text";
+  textEl.textContent = text;
+  el.appendChild(textEl);
+
+  const meta = document.createElement("div");
+  meta.className = "message-meta";
+  meta.textContent = formatMessageTime(options.time ?? new Date());
+  if (options.usedMemory) {
+    const badge = document.createElement("span");
+    badge.className = "message-memory-badge";
+    badge.title = "Ha usato la memoria";
+    badge.textContent = "🧠";
+    meta.appendChild(badge);
+  }
+  el.appendChild(meta);
+
   container.appendChild(el);
   container.scrollTop = container.scrollHeight;
 }
@@ -76,7 +98,9 @@ async function loadHistory(): Promise<void> {
   try {
     const turns = await chatAPI.getHistory();
     for (const turn of turns) {
-      appendMessage(turn.content, turn.eventType === "user_message" ? "user" : "bot");
+      appendMessage(turn.content, turn.eventType === "user_message" ? "user" : "bot", {
+        time: new Date(turn.createdAt),
+      });
     }
   } catch (err) {
     // Puo' succedere al primissimo caricamento in background, prima che
@@ -103,8 +127,8 @@ function init(): void {
     input.disabled = true;
 
     try {
-      const { reply, audioUrl } = await chatAPI.sendMessage(message);
-      appendMessage(reply, "bot");
+      const { reply, audioUrl, usedMemory } = await chatAPI.sendMessage(message);
+      appendMessage(reply, "bot", { usedMemory });
       if (audioUrl) playAudio(audioUrl);
     } catch (err) {
       appendMessage("Errore nel contattare il companion. Riprova.", "bot");
@@ -118,9 +142,9 @@ function init(): void {
 
   // Scambi innescati dalla voce: l'audio lo riproduce gia' l'avatar (vedi
   // handleBrainEvent in index.ts), qui si mostra solo il testo.
-  chatAPI.onNewExchange(({ userMessage, reply }) => {
+  chatAPI.onNewExchange(({ userMessage, reply, usedMemory }) => {
     appendMessage(userMessage, "user");
-    appendMessage(reply, "bot");
+    appendMessage(reply, "bot", { usedMemory });
   });
 
   input.focus();

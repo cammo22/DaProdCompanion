@@ -52,6 +52,6 @@ export function getChatWindow(): BrowserWindow | null {
  * usato per gli scambi innescati dalla voce: la chat testuale li mostra
  * anche se non sono partiti da li', ma non ne riproduce l'audio (gia' fatto
  * dall'avatar, vedi handleBrainEvent in index.ts). */
-export function notifyNewExchange(userMessage: string, reply: string): void {
-  chatWindow?.webContents.send("chat:new-exchange", { userMessage, reply });
+export function notifyNewExchange(userMessage: string, reply: string, usedMemory: boolean): void {
+  chatWindow?.webContents.send("chat:new-exchange", { userMessage, reply, usedMemory });
 }
