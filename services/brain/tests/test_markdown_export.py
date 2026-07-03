@@ -84,3 +84,14 @@ def test_append_identity_reflection_accumulates_over_calls(guard, sandbox_root):
     assert "Prima riflessione." in content
     assert "Seconda riflessione." in content
     assert content.count("# Chi sono io, Babbasone") == 1  # l'header non si ripete
+
+
+def test_append_identity_reflection_caps_entries_and_keeps_header(guard, sandbox_root):
+    for i in range(35):
+        append_identity_reflection(f"Riflessione numero {i}.", bot_name="Babbasone", guard=guard, sandbox_root=sandbox_root)
+    content = (sandbox_root / "chi-sono.md").read_text(encoding="utf-8")
+    assert "# Chi sono io, Babbasone" in content
+    assert content.count("# Chi sono io, Babbasone") == 1  # l'header non si ripete
+    assert "Riflessione numero 0." not in content  # le piu' vecchie sono state tagliate
+    assert "Riflessione numero 34." in content  # l'ultima resta sempre
+    assert content.count("## ") == 30

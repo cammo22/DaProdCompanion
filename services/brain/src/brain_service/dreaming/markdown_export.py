@@ -106,6 +106,23 @@ def write_dream_summary(summary: str, *, timestamp: str, guard: FilesystemGuard,
 
 
 _IDENTITY_FILE = Path("chi-sono.md")
+_MAX_IDENTITY_ENTRIES = 30
+
+
+def _split_identity_sections(text: str) -> tuple[str, list[str]]:
+    """Separa l'intestazione ("# Chi sono io, ...") dalle sezioni datate
+    ("## AAAA-MM-GG") che seguono, per poterne tenere solo le ultime N senza
+    perdere l'intestazione: il diario altrimenti crescerebbe all'infinito."""
+    lines = text.split("\n")
+    i = 0
+    while i < len(lines) and not lines[i].startswith("## "):
+        i += 1
+    header = "\n".join(lines[:i]).rstrip("\n")
+    rest = "\n".join(lines[i:]).strip("\n")
+    if not rest:
+        return header, []
+    sections = [s.strip("\n") for s in re.split(r"\n(?=## )", rest) if s.strip()]
+    return header, sections
 
 
 def append_identity_reflection(reflection: str, *, bot_name: str, guard: FilesystemGuard, sandbox_root: Path) -> None:
@@ -114,7 +131,8 @@ def append_identity_reflection(reflection: str, *, bot_name: str, guard: Filesys
     strutturato da cui ricostruirla), ma accumulata nel tempo una riflessione
     alla volta, cosi' diventa via via un diario della propria identita' cosi'
     come emerge dalle conversazioni reali, non un testo statico scritto una
-    tantum."""
+    tantum. Tiene solo le ultime _MAX_IDENTITY_ENTRIES sezioni, altrimenti
+    dopo mesi di dreaming il file crescerebbe senza limite."""
     file_path = sandbox_root / _IDENTITY_FILE
     try:
         with guard.open_sandboxed(file_path, "r", purpose="lettura pagina identita'", encoding="utf-8") as f:
@@ -122,7 +140,11 @@ def append_identity_reflection(reflection: str, *, bot_name: str, guard: Filesys
     except FileNotFoundError:
         existing = f"# Chi sono io, {bot_name}\n"
 
+    header, entries = _split_identity_sections(existing)
     today = datetime.now().strftime("%Y-%m-%d")
-    entry = f"\n## {today}\n\n{reflection}\n"
+    entries.append(f"## {today}\n\n{reflection}")
+    entries = entries[-_MAX_IDENTITY_ENTRIES:]
+
+    content = header + "\n\n" + "\n\n".join(entries) + "\n"
     with guard.open_sandboxed(file_path, "w", purpose="scrittura pagina identita'", encoding="utf-8") as f:
-        f.write(existing + entry)
+        f.write(content)
