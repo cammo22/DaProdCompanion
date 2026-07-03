@@ -145,6 +145,12 @@ async def run_dreaming_cycle(
                     "messages": [{"role": "user", "content": prompt}],
                     "stream": False,
                     "format": _RESPONSE_SCHEMA,
+                    # 'think': False disattiva il ragionamento esteso sui modelli che lo
+                    # supportano (es. qwen3.5): senza, un modello "pensante" puo' consumare
+                    # gran parte di num_predict in token di ragionamento prima di arrivare
+                    # al JSON vero e proprio, troncandolo. Qui serve solo estrazione
+                    # strutturata, non ragionamento profondo.
+                    "think": False,
                     # num_predict esplicito: senza, il default di Ollama puo' troncare
                     # a meta' un riassunto+entita'+relazioni su transcript lunghi (osservato
                     # con 56 episodi: il riassunto si interrompeva a meta' frase). La

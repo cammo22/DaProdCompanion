@@ -224,6 +224,11 @@ class QuantumMode:
                 "messages": [{"role": "user", "content": prompt}],
                 "stream": False,
                 "format": _ITERATION_SCHEMA,
+                # 'think': False come in consolidation.py: qui serve solo estrarre
+                # entita'/relazioni in JSON, non ragionare a lungo. Senza, un
+                # modello "pensante" (es. qwen3.5) puo' consumare gran parte del
+                # budget in token di ragionamento e troncare il JSON.
+                "think": False,
                 # num_predict alto come in consolidation.py: senza, il default di
                 # Ollama tronca a meta' schema (osservato con 512: ogni singola
                 # iterazione falliva il parsing JSON), specialmente perche' il
@@ -286,6 +291,7 @@ class QuantumMode:
                     ],
                     "stream": False,
                     "format": _HANDOFF_SCHEMA,
+                    "think": False,
                     "options": {"num_ctx": self._num_ctx, "num_predict": 1024},
                 },
             )
