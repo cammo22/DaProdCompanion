@@ -55,7 +55,11 @@ declare const graphAPI: {
 
 interface D3Force {
   strength(value: number): void;
+  distance?(value: number): void;
 }
+
+const DEFAULT_REPULSION = 120;
+const DEFAULT_LINK_DISTANCE = 60;
 
 declare class ForceGraph {
   constructor(element: HTMLElement);
@@ -69,6 +73,7 @@ declare class ForceGraph {
     fn: (node: RenderNode, color: string, ctx: CanvasRenderingContext2D, scale: number) => void,
   ): this;
   onNodeClick(callback: (node: RenderNode) => void): this;
+  onNodeHover(callback: (node: RenderNode | null) => void): this;
   backgroundColor(color: string): this;
   width(w: number): this;
   height(h: number): this;
@@ -90,9 +95,16 @@ const NODE_TYPE_COLORS: Record<string, string> = {
   Luogo: "#4affa0",
 };
 
-// Stato dei controlli (slider): letto sia dagli accessor reattivi
-// (nodeVisibility, richiamato ad ogni frame) sia dai listener di input.
+// Stato dei controlli (slider): letto sia dagli accessor/canvas reattivi
+// (richiamati ad ogni frame) sia dai listener di input.
+//
+// "Connessioni minime" NON nasconde piu' i pallini (richiesto esplicitamente
+// dall'utente dopo che una versione precedente lo faceva per errore): nasconde
+// solo l'ETICHETTA di testo dei nodi sotto la soglia, cosi' il grafo resta
+// leggibile senza perdere nodi. Passare il mouse su un nodo ne rivela comunque
+// sempre il nome, indipendentemente dalla soglia.
 let minConnectionsFilter = 0;
+let hoveredNodeId: string | null = null;
 
 function computeDegrees(snapshot: GraphSnapshot): Map<number, number> {
   const degrees = new Map<number, number>();
@@ -180,9 +192,11 @@ function render(snapshot: GraphSnapshot): void {
       .height(container.clientHeight)
       .nodeId("id")
       .nodeLabel((node) => `${node.label} (${node.nodeType}, ${node.degree} collegamenti)`)
-      .nodeVisibility((node) => node.degree >= minConnectionsFilter)
       .linkColor(() => "rgba(255,255,255,0.25)")
       .onNodeClick((node) => showNodeDetail(node))
+      .onNodeHover((node) => {
+        hoveredNodeId = node?.id ?? null;
+      })
       .nodeCanvasObject((node, ctx, scale) => {
         // Raggio in base al numero di collegamenti: piu' un nodo e'
         // centrale nel grafo, piu' risalta a colpo d'occhio.
@@ -192,12 +206,18 @@ function render(snapshot: GraphSnapshot): void {
         ctx.fillStyle = NODE_TYPE_COLORS[node.nodeType] ?? "#aaaaaa";
         ctx.fill();
 
-        const fontSize = 12 / scale;
-        ctx.font = `${fontSize}px "Segoe UI", sans-serif`;
-        ctx.textAlign = "center";
-        ctx.textBaseline = "top";
-        ctx.fillStyle = "rgba(255,255,255,0.85)";
-        ctx.fillText(node.label, node.x ?? 0, (node.y ?? 0) + radius + 2);
+        // Il pallino resta sempre visibile: solo l'etichetta si nasconde
+        // sotto la soglia "connessioni minime" (o si rivela comunque al
+        // passaggio del mouse), cosi' non si perdono mai nodi dal grafo.
+        const showLabel = node.degree >= minConnectionsFilter || node.id === hoveredNodeId;
+        if (showLabel) {
+          const fontSize = 12 / scale;
+          ctx.font = `${fontSize}px "Segoe UI", sans-serif`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "top";
+          ctx.fillStyle = "rgba(255,255,255,0.85)";
+          ctx.fillText(node.label, node.x ?? 0, (node.y ?? 0) + radius + 2);
+        }
       })
       .nodePointerAreaPaint((node, color, ctx) => {
         const radius = 4 + Math.min(node.degree, 10) * 1.1;
@@ -206,6 +226,13 @@ function render(snapshot: GraphSnapshot): void {
         ctx.arc(node.x ?? 0, node.y ?? 0, radius + 3, 0, 2 * Math.PI);
         ctx.fill();
       });
+
+    // Applica subito i valori di default degli slider alle forze reali:
+    // altrimenti lo slider mostra "120"/"60" ma la simulazione userebbe i
+    // default interni di d3-force-graph finche' l'utente non lo tocca,
+    // disallineando cio' che si vede da cio' che si legge.
+    graph.d3Force("charge")?.strength(-DEFAULT_REPULSION);
+    graph.d3Force("link")?.distance?.(DEFAULT_LINK_DISTANCE);
   }
 
   graph.graphData(toGraphData(snapshot));
@@ -269,6 +296,21 @@ function initRepulsionSlider(): void {
   slider.addEventListener("input", () => {
     const strength = -Number(slider.value);
     graph?.d3Force("charge")?.strength(strength);
+    graph?.d3ReheatSimulation();
+  });
+}
+
+/** Slider separato per l'attrazione (distanza dei collegamenti), non solo
+ * repulsione: prima si poteva solo respingere di piu' o di meno, senza modo
+ * di far avvicinare le coppie di nodi collegati. Distanza piu' piccola =
+ * nodi collegati tirati piu' vicini, per bilanciare la repulsione generale. */
+function initAttractionSlider(): void {
+  const slider = document.getElementById("attraction") as HTMLInputElement | null;
+  if (!slider) return;
+
+  slider.addEventListener("input", () => {
+    const distance = Number(slider.value);
+    graph?.d3Force("link")?.distance?.(distance);
     graph?.d3ReheatSimulation();
   });
 }
@@ -337,6 +379,7 @@ function init(): void {
   initRefreshButton();
   initMinConnectionsSlider();
   initRepulsionSlider();
+  initAttractionSlider();
   initQuantumButton();
 
   refreshDreamTimer();

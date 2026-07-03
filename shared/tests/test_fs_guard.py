@@ -54,6 +54,30 @@ def test_open_sandboxed_outside_sandbox_is_blocked(guard, tmp_path):
         guard.open_sandboxed(outside, "r")
 
 
+def test_delete_sandboxed_removes_file(guard, sandbox_root):
+    with guard.open_sandboxed("to-delete.txt", "w") as f:
+        f.write("ciao")
+    guard.delete_sandboxed("to-delete.txt")
+    assert not (sandbox_root / "to-delete.txt").exists()
+
+
+def test_delete_sandboxed_removes_directory_recursively(guard, sandbox_root):
+    with guard.open_sandboxed("dir/nested.txt", "w") as f:
+        f.write("ciao")
+    guard.delete_sandboxed("dir")
+    assert not (sandbox_root / "dir").exists()
+
+
+def test_delete_sandboxed_missing_path_is_a_no_op(guard):
+    guard.delete_sandboxed("never-existed.txt")  # non deve sollevare eccezioni
+
+
+def test_delete_sandboxed_outside_sandbox_is_blocked(guard, tmp_path):
+    outside = tmp_path / "outside" / "file.txt"
+    with pytest.raises(SandboxViolation):
+        guard.delete_sandboxed(outside)
+
+
 def test_audit_log_mirrors_allow_and_deny_to_db_when_sink_attached(guard, tmp_path):
     conn = sqlite3.connect(":memory:")
     conn.execute(

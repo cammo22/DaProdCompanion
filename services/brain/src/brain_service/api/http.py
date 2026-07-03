@@ -298,7 +298,7 @@ async def admin_reset() -> dict[str, str]:
     scritto esplicitamente la parola di conferma (vedi settings-window lato
     Electron): brain non ha un suo secondo livello di conferma, si fida che
     chi chiama questo endpoint l'abbia gia' ottenuta."""
-    reset_all_memory(app.state.conn)
+    reset_all_memory(app.state.conn, guard=app.state.guard, sandbox_root=app.state.settings.resolved_sandbox_root())
     app.state.event_bus.publish("graph-updated", {})
     app.state.logger.warning("Reset completo della memoria eseguito su richiesta dell'utente")
     return {"status": "reset completato"}

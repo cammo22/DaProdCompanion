@@ -67,3 +67,16 @@ class FilesystemGuard:
         if any(m in mode for m in ("w", "a", "x", "+")):
             resolved.parent.mkdir(parents=True, exist_ok=True)
         return resolved.open(mode, **kwargs)
+
+    def delete_sandboxed(self, requested_path: str | Path, *, purpose: str = "") -> None:
+        """Cancella un file o una cartella (ricorsivamente) passando prima da
+        resolve_and_check(), come open_sandboxed(). Non fallisce se il
+        percorso non esiste gia': cancellare qualcosa di gia' assente e' un
+        no-op accettabile per i chiamanti (es. reset di dati mai creati)."""
+        import shutil
+
+        resolved = self.resolve_and_check(requested_path, purpose=purpose)
+        if resolved.is_dir():
+            shutil.rmtree(resolved, ignore_errors=True)
+        elif resolved.exists():
+            resolved.unlink()

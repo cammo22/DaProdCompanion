@@ -31,7 +31,13 @@ SAMPLE_RATE = 24000
 
 class KokoroEngine:
     def __init__(self, lang_code: str = "i") -> None:
-        self._pipeline = KPipeline(lang_code=lang_code)
+        # 'device' esplicito invece di affidarsi solo a CUDA_VISIBLE_DEVICES:
+        # quella variabile nasconde la GPU a torch in generale, ma KPipeline
+        # supporta un parametro device dedicato ed e' piu' robusto specificarlo
+        # qui direttamente (non dipende da un side-effect d'ambiente che in un
+        # eseguibile pacchettizzato potrebbe non propagarsi allo stesso modo).
+        force_cpu = os.environ.get("FORCE_CPU_KOKORO", "true").lower() != "false"
+        self._pipeline = KPipeline(lang_code=lang_code, device="cpu" if force_cpu else None)
 
     def synthesize(self, text: str, *, voice: str, speed: float = 1.0) -> tuple[np.ndarray, float]:
         """Restituisce (audio_mono_24khz, durata_in_secondi)."""

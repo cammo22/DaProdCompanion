@@ -12,6 +12,8 @@ from pathlib import Path
 import pytest
 from companion_shared.db import open_connection
 
+from companion_shared.sandbox import FilesystemGuard
+
 from brain_service.admin.reset import reset_all_memory
 from brain_service.memory.embeddings import serialize_embedding
 
@@ -74,3 +76,28 @@ def test_reset_on_already_empty_db_is_a_no_op(conn):
     reset_all_memory(conn)  # non deve sollevare eccezioni su un DB gia' vuoto
     for table in _TABLES:
         assert _count(conn, table) == 0
+
+
+def test_reset_also_clears_the_markdown_vault(conn, tmp_path):
+    sandbox_root = tmp_path / "sandbox"
+    guard = FilesystemGuard(sandbox_root, service="test")
+
+    with guard.open_sandboxed(sandbox_root / "memoria" / "entita" / "marco.md", "w") as f:
+        f.write("# Marco")
+    with guard.open_sandboxed(sandbox_root / "memoria" / "sogni" / "2026-01-01.md", "w") as f:
+        f.write("# Sogno")
+    with guard.open_sandboxed(sandbox_root / "memoria" / "quantum_handoff.md", "w") as f:
+        f.write("nota")
+    with guard.open_sandboxed(sandbox_root / "chi-sono.md", "w") as f:
+        f.write("# Chi sono")
+
+    reset_all_memory(conn, guard=guard, sandbox_root=sandbox_root)
+
+    assert not (sandbox_root / "memoria" / "entita").exists()
+    assert not (sandbox_root / "memoria" / "sogni").exists()
+    assert not (sandbox_root / "memoria" / "quantum_handoff.md").exists()
+    assert not (sandbox_root / "chi-sono.md").exists()
+
+
+def test_reset_without_guard_skips_markdown_cleanup(conn):
+    reset_all_memory(conn)  # guard/sandbox_root non forniti: non deve sollevare eccezioni

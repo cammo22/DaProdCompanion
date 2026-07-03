@@ -19,13 +19,18 @@
     <div id="quantum-status" class="quantum-status hidden"></div>
 
     <div class="control-row">
-      <label for="min-connections">Connessioni minime: <span id="min-connections-value">0</span></label>
+      <label for="min-connections">Nascondi nomi sotto: <span id="min-connections-value">0</span> collegamenti</label>
       <input id="min-connections" type="range" min="0" max="6" step="1" value="0" />
     </div>
 
     <div class="control-row">
       <label for="repulsion">Repulsione</label>
       <input id="repulsion" type="range" min="20" max="400" step="10" value="120" />
+    </div>
+
+    <div class="control-row">
+      <label for="attraction">Attrazione (distanza collegamenti)</label>
+      <input id="attraction" type="range" min="10" max="200" step="5" value="60" />
     </div>
 
     <div id="dream-timer" class="dream-timer">
