@@ -1,6 +1,11 @@
 # Percorso dell'SDK: specifico della macchina, mai condiviso
 local.properties
 
+# Credenziali di firma: MAI nel repo, nemmeno per un keystore "usa e getta"
+keystore.properties
+*.keystore
+*.jks
+
 # Output di build
 */build/
 .gradle/

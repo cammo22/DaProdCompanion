@@ -12,7 +12,13 @@ import os from "node:os";
 import path from "node:path";
 import dotenv from "dotenv";
 
-export const REPO_ROOT = path.resolve(app.getAppPath(), "..");
+// In sviluppo, app.getAppPath() e' la cartella app/ dentro il checkout del
+// repo, quindi ".." e' la radice giusta. Una volta impacchettato con
+// electron-builder, app.getAppPath() punta invece dentro le risorse
+// dell'installazione (es. "resources/app.asar"), completamente separate da
+// dove vivono realmente .env/.venv/i servizi Python — per quel caso serve un
+// override esplicito, non c'e' modo di dedurlo automaticamente.
+export const REPO_ROOT = process.env.DAPRODCOMPANION_ROOT ?? path.resolve(app.getAppPath(), "..");
 export const ENV_FILE = path.join(REPO_ROOT, ".env");
 
 export interface CompanionConfig {
