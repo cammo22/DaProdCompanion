@@ -8,6 +8,10 @@ che ha imparato. Nessun dato lascia il PC: il cervello (Ollama), la voce (Kokoro
 Architettura di riferimento (scritta prima di iniziare, non tutta ancora attuale):
 [docs/architecture/architettura.md](docs/architecture/architettura.md).
 
+C'e' anche un primissimo abbozzo Android (Gemma 3n E2B interamente sul telefono, zero dipendenza
+dal PC): vedi [android/README.md](android/README.md) — per ora solo uno scheletro che compila,
+non ancora provato su un dispositivo vero.
+
 ## Stato (v0.0.1)
 
 Prima release taggata, pensata per essere provata e per raccogliere feedback — non e' un

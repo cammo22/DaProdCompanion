@@ -1,0 +1,13 @@
+# Percorso dell'SDK: specifico della macchina, mai condiviso
+local.properties
+
+# Output di build
+*/build/
+.gradle/
+*.apk
+*.aab
+
+# IDE
+.idea/
+*.iml
+.kotlin/
