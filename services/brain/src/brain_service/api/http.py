@@ -23,6 +23,7 @@ from ..conversation.loop import handle_user_message
 from ..conversation.ollama_client import OllamaClient
 from ..conversation.stt_client import SttClient
 from ..conversation.tts_client import TtsClient
+from ..diagnostics import run_diagnostics
 from ..dreaming.consolidation import run_dreaming_cycle
 from ..dreaming.scheduler import DreamingScheduler
 from ..events.bus import EventBus
@@ -34,6 +35,7 @@ from .schemas import (
     ChatResponse,
     ConversationHistoryResponse,
     ConversationTurnOut,
+    DiagnosticsResponse,
     DreamingRunResponse,
     DreamingStatusResponse,
     GraphSnapshotResponse,
@@ -129,6 +131,28 @@ app.include_router(ws_router)
 async def health() -> HealthResponse:
     settings: Settings = app.state.settings
     return HealthResponse(status="ok", bot_name=settings.bot_name)
+
+
+@app.get("/diagnostics", response_model=DiagnosticsResponse)
+async def diagnostics() -> DiagnosticsResponse:
+    """Controllo prerequisiti (Ollama in esecuzione, modelli scaricati): usato
+    da Electron all'avvio per guidare il setup invece di far fallire in modo
+    grezzo la prima chat."""
+    settings: Settings = app.state.settings
+    result = await run_diagnostics(
+        ollama_host=settings.ollama_host,
+        brain_model_tag=settings.brain_model_tag,
+        embedding_model_tag=settings.embedding_model_tag,
+    )
+    return DiagnosticsResponse(
+        ok=result.all_ok,
+        ollama_reachable=result.ollama_reachable,
+        brain_model_present=result.brain_model_present,
+        embedding_model_present=result.embedding_model_present,
+        brain_model_tag=result.brain_model_tag,
+        embedding_model_tag=result.embedding_model_tag,
+        problems=result.problems(),
+    )
 
 
 @app.post("/chat", response_model=ChatResponse)

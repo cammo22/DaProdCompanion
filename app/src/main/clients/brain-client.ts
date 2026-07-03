@@ -47,6 +47,41 @@ export async function getBrainHealth(): Promise<{ status: string; bot_name: stri
   return (await res.json()) as { status: string; bot_name: string };
 }
 
+export interface Diagnostics {
+  ok: boolean;
+  ollamaReachable: boolean;
+  brainModelPresent: boolean;
+  embeddingModelPresent: boolean;
+  brainModelTag: string;
+  embeddingModelTag: string;
+  problems: string[];
+}
+
+export async function getDiagnostics(): Promise<Diagnostics> {
+  const res = await fetch(`${baseUrl()}/diagnostics`);
+  if (!res.ok) {
+    throw new Error(`brain /diagnostics ha risposto ${res.status}`);
+  }
+  const data = (await res.json()) as {
+    ok: boolean;
+    ollama_reachable: boolean;
+    brain_model_present: boolean;
+    embedding_model_present: boolean;
+    brain_model_tag: string;
+    embedding_model_tag: string;
+    problems: string[];
+  };
+  return {
+    ok: data.ok,
+    ollamaReachable: data.ollama_reachable,
+    brainModelPresent: data.brain_model_present,
+    embeddingModelPresent: data.embedding_model_present,
+    brainModelTag: data.brain_model_tag,
+    embeddingModelTag: data.embedding_model_tag,
+    problems: data.problems,
+  };
+}
+
 export interface GraphSnapshot {
   nodes: { id: number; node_type: string; label: string }[];
   edges: { id: number; source_node_id: number; target_node_id: number; edge_type: string }[];

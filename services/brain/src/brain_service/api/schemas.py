@@ -83,3 +83,13 @@ class QuantumStatusResponse(BaseModel):
 
 class PartialTranscriptRequest(BaseModel):
     text: str
+
+
+class DiagnosticsResponse(BaseModel):
+    ok: bool
+    ollama_reachable: bool
+    brain_model_present: bool
+    embedding_model_present: bool
+    brain_model_tag: str
+    embedding_model_tag: str
+    problems: list[str]

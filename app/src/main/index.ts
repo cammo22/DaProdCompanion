@@ -4,9 +4,10 @@
  * supervisionato, registra gli handler IPC, gestisce lo spegnimento pulito.
  */
 
-import { app } from "electron";
+import { app, dialog } from "electron";
 import { pathToFileURL } from "node:url";
 import { isAppQuitting, markAppQuitting } from "./app-state";
+import { getDiagnostics } from "./clients/brain-client";
 import { getConfig, refreshConfig, writeBotName } from "./config";
 import { registerAudioHandlers } from "./ipc/audio-handlers";
 import { registerAvatarHandlers } from "./ipc/avatar-handlers";
@@ -211,10 +212,49 @@ app.whenReady().then(async () => {
     const { brainHttpPort } = getConfig();
     brainEvents = new BrainEventClient(`ws://127.0.0.1:${brainHttpPort}/ws`, handleBrainEvent);
     brainEvents.connect();
+
+    // Setup iniziale: brain risponde /health anche se Ollama non gira o il
+    // modello non e' scaricato, ma in quel caso la prima chat fallirebbe con
+    // un errore incomprensibile. Controlliamo i prerequisiti a monte e, se
+    // manca qualcosa, lo diciamo chiaramente all'utente con l'azione precisa
+    // da fare (es. "esegui ollama pull ..."), invece di lasciarlo scoprire
+    // dal fallimento silenzioso.
+    await checkPrerequisites();
+  } else {
+    dialog.showMessageBox({
+      type: "error",
+      title: "DaProdCompanion",
+      message: "Il cervello del companion (brain_service) non si e' avviato.",
+      detail:
+        "Controlla che Python e le dipendenze siano installate correttamente " +
+        "(uv sync --all-packages) e riavvia. I log dettagliati sono nella cartella " +
+        "'logs' dentro la cartella del companion sul Desktop.",
+    });
   }
 }).catch((err) => {
   console.error("[main] errore durante l'avvio:", err);
 });
+
+async function checkPrerequisites(): Promise<void> {
+  try {
+    const diagnostics = await getDiagnostics();
+    if (diagnostics.ok) return;
+    await dialog.showMessageBox({
+      type: "warning",
+      title: "DaProdCompanion — configurazione da completare",
+      message: "Manca qualcosa perche' il companion funzioni:",
+      detail:
+        diagnostics.problems.map((p) => `• ${p}`).join("\n\n") +
+        "\n\nRisolvi questi punti e riavvia il companion. " +
+        "Il modello per la conversazione si puo' anche cambiare dalle Impostazioni, " +
+        "scegliendone uno gia' scaricato.",
+    });
+  } catch (err) {
+    // La diagnostica e' best-effort: se fallisce (es. brain e' appena caduto)
+    // non blocchiamo l'avvio ne' mostriamo un errore fuorviante.
+    console.warn("[main] diagnostica prerequisiti non riuscita:", err);
+  }
+}
 
 app.on("window-all-closed", () => {
   // Con isAppQuitting() gestito correttamente (vedi chat-window.ts), questo
