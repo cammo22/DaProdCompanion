@@ -57,12 +57,29 @@ class MicMuteState:
     lo stesso flag, un mute automatico durante la riproduzione TTS (o durante
     la modalita' Quantum) potrebbe riattivare per sbaglio il microfono che
     l'utente aveva mutato lui stesso a mano (o viceversa). 'muted' e' vero se
-    una qualunque delle tre lo e'."""
+    una qualunque delle tre lo e'.
+
+    'speaking' e' un contatore, non un bool semplice: sia la finestra avatar
+    sia quella chat possono riprodurre audio TTS in modo indipendente (es.
+    l'annuncio di un sogno sull'avatar mentre l'utente manda un messaggio di
+    testo), e con un bool la prima riproduzione a finire smuterebbe il
+    microfono mentre l'altra sta ancora suonando — stesso bug di
+    DreamingScheduler.suppress()/unsuppress(), risolto con lo stesso pattern."""
 
     def __init__(self) -> None:
         self.manual_muted = False
-        self.speaking_muted = False
         self.quantum_muted = False
+        self._speaking_count = 0
+
+    def set_speaking(self, muted: bool) -> None:
+        if muted:
+            self._speaking_count += 1
+        else:
+            self._speaking_count = max(0, self._speaking_count - 1)
+
+    @property
+    def speaking_muted(self) -> bool:
+        return self._speaking_count > 0
 
     @property
     def muted(self) -> bool:
@@ -194,9 +211,11 @@ async def speaking_mute(request: SpeakingMuteRequest) -> MuteStateResponse:
     audio (evento 'play'/'ended' reale, non una stima della durata): evita
     che il microfono sempre acceso capti la voce del companion dalle casse e
     la scambi per un nuovo comando (rischio di auto-innesco se una risposta
-    contiene il nome del bot)."""
+    contiene il nome del bot). Incrementale (vedi MicMuteState.set_speaking):
+    avatar e finestra chat possono riprodurre audio in modo indipendente e
+    sovrapposto."""
     state: MicMuteState = app.state.mute_state
-    state.speaking_muted = request.muted
+    state.set_speaking(request.muted)
     return MuteStateResponse(muted=state.muted)
 
 
