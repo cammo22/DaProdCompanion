@@ -115,7 +115,17 @@ function showReplyBubble(payload: BubblePayload): void {
   isDreamingBubble = false;
   currentBubbleDurationMs = payload.suggestedDurationMs;
   hidePartialTranscript(); // la risposta vera e' arrivata, l'anteprima non serve piu'
-  hideHistoryPanel(); // stessa area della bolla: senza chiuderlo, la nuova risposta resterebbe nascosta dietro
+
+  // L'audio si riproduce comunque, anche a vista bloccata.
+  if (payload.audioUrl) playVoiceAudio(payload.audioUrl);
+
+  // Se la conversazione e' "bloccata" (pin attivo), non mostriamo la bolla
+  // volatile: aggiorniamo il visualizzatore fisso e saltiamo all'ultimo
+  // scambio, cosi' resta sempre visibile come richiesto.
+  if (isPinned) {
+    refreshConvo(true);
+    return;
+  }
 
   const bubbleEl = document.getElementById("bubble");
   const textEl = document.getElementById("bubble-text");
@@ -137,21 +147,17 @@ function showReplyBubble(payload: BubblePayload): void {
   badgeEl.classList.toggle("hidden", !payload.usedMemory);
   bubbleEl.classList.remove("hidden");
 
-  // Presente solo per le risposte innescate dalla voce (chat testuale la
-  // riproduce gia' nella propria finestra, vedi flashReply in avatar-window.ts).
-  if (payload.audioUrl) playVoiceAudio(payload.audioUrl);
-
   scheduleHide(currentBubbleDurationMs);
 }
 
 function showPartialTranscript(text: string): void {
+  if (isPinned) return; // a vista bloccata non copriamo il visualizzatore fisso
   const el = document.getElementById("partial-transcript");
   if (!el) return;
   if (!text) {
     hidePartialTranscript();
     return;
   }
-  hideHistoryPanel(); // stessa area della bolla, vedi showReplyBubble
   el.textContent = `Tu: ${text}...`;
   el.classList.remove("hidden");
 }
@@ -160,14 +166,10 @@ function hidePartialTranscript(): void {
   document.getElementById("partial-transcript")?.classList.add("hidden");
 }
 
-function hideHistoryPanel(): void {
-  document.getElementById("history-panel")?.classList.add("hidden");
-}
-
 function showDreamingBubble(): void {
+  if (isPinned) return; // a vista bloccata il colore dell'avatar segnala gia' il sogno
   isDreamingBubble = true;
   clearHideTimer(); // niente auto-hide: segue lo stato reale del dreaming
-  hideHistoryPanel(); // stessa area della bolla, vedi showReplyBubble
 
   const bubbleEl = document.getElementById("bubble");
   const textEl = document.getElementById("bubble-text");
@@ -262,51 +264,122 @@ function initLiveButton(): void {
   });
 }
 
-function formatHistoryTime(iso: string): string {
-  return new Date(iso).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+// --- Vista conversazione bloccabile (pin) -------------------------------
+// Uno scambio alla volta (la tua domanda in verde, la risposta in bianco, su
+// sfondo scuro), navigabile avanti/indietro con un effetto di dissolvenza.
+// Quando il pin e' attivo resta SEMPRE visibile e la bolla volatile non
+// compare (vedi showReplyBubble).
+interface Exchange {
+  question: string;
+  answer: string;
 }
 
-async function loadHistoryPanel(): Promise<void> {
-  const listEl = document.getElementById("history-list");
-  if (!listEl) return;
-  listEl.textContent = "Caricamento...";
+let isPinned = false;
+let exchanges: Exchange[] = [];
+let currentExchangeIndex = 0;
+
+function buildExchanges(turns: HistoryTurn[]): Exchange[] {
+  const result: Exchange[] = [];
+  let pendingQuestion: string | null = null;
+  for (const turn of turns) {
+    if (turn.eventType === "user_message") {
+      // Una nuova domanda mentre la precedente non ha ancora risposta: la
+      // chiudo comunque come scambio senza risposta, cosi' non si perde.
+      if (pendingQuestion !== null) result.push({ question: pendingQuestion, answer: "" });
+      pendingQuestion = turn.content;
+    } else {
+      result.push({ question: pendingQuestion ?? "", answer: turn.content });
+      pendingQuestion = null;
+    }
+  }
+  if (pendingQuestion !== null) result.push({ question: pendingQuestion, answer: "" });
+  return result;
+}
+
+function renderExchange(): void {
+  const posEl = document.getElementById("convo-position");
+  const qEl = document.getElementById("convo-question");
+  const aEl = document.getElementById("convo-answer");
+  const bodyEl = document.getElementById("convo-body");
+  if (!posEl || !qEl || !aEl || !bodyEl) return;
+
+  if (exchanges.length === 0) {
+    qEl.textContent = "";
+    aEl.textContent = "Ancora nessuna conversazione.";
+    posEl.textContent = "—";
+    return;
+  }
+
+  currentExchangeIndex = Math.max(0, Math.min(currentExchangeIndex, exchanges.length - 1));
+  const ex = exchanges[currentExchangeIndex];
+  qEl.textContent = ex.question ? `Tu: ${ex.question}` : "";
+  aEl.textContent = ex.answer || "…";
+  posEl.textContent = `${currentExchangeIndex + 1} / ${exchanges.length}`;
+
+  // Effetto dissolvenza ad ogni cambio di scambio: riavvio l'animazione
+  // togliendo e rimettendo la classe (il reflow forzato in mezzo e' cio' che
+  // fa ripartire l'animazione CSS anche sullo stesso elemento).
+  bodyEl.classList.remove("fade-in");
+  void bodyEl.offsetWidth;
+  bodyEl.classList.add("fade-in");
+}
+
+async function refreshConvo(jumpToLatest: boolean): Promise<void> {
   try {
     const turns = await avatarAPI.getHistory();
-    listEl.innerHTML = "";
-    if (turns.length === 0) {
-      listEl.textContent = "Nessun messaggio ancora.";
-      return;
+    exchanges = buildExchanges(turns);
+    if (jumpToLatest || currentExchangeIndex >= exchanges.length) {
+      currentExchangeIndex = Math.max(0, exchanges.length - 1);
     }
-    for (const turn of turns) {
-      const entry = document.createElement("div");
-      entry.className = `history-entry history-entry-${turn.eventType === "user_message" ? "user" : "bot"}`;
-      const label = turn.eventType === "user_message" ? "Tu" : "Babbasone";
-      entry.textContent = `${label} (${formatHistoryTime(turn.createdAt)}): ${turn.content}`;
-      listEl.appendChild(entry);
-    }
-    listEl.scrollTop = listEl.scrollHeight;
+    renderExchange();
   } catch (err) {
-    listEl.textContent = "Impossibile caricare la cronologia.";
-    console.error("Caricamento cronologia avatar fallito:", err);
+    console.error("Caricamento conversazione fallito:", err);
   }
 }
 
-function initHistoryToggle(): void {
-  const button = document.getElementById("history-toggle-button");
-  const panel = document.getElementById("history-panel");
-  const closeButton = document.getElementById("history-close-button");
-  if (!button || !panel || !closeButton) return;
+function setPinned(pinned: boolean): void {
+  isPinned = pinned;
+  document.getElementById("pin-button")?.classList.toggle("active", pinned);
+  const view = document.getElementById("convo-view");
+  if (pinned) {
+    clearHideTimer();
+    document.getElementById("bubble")?.classList.add("hidden");
+    hidePartialTranscript();
+    view?.classList.remove("hidden");
+    refreshConvo(true);
+  } else {
+    view?.classList.add("hidden");
+  }
+}
+
+function initPinButton(): void {
+  const button = document.getElementById("pin-button");
+  const closeButton = document.getElementById("convo-close");
+  const prevButton = document.getElementById("convo-prev");
+  const nextButton = document.getElementById("convo-next");
+  if (!button) return;
 
   button.addEventListener("click", (event) => {
     event.stopPropagation();
-    const willShow = panel.classList.contains("hidden");
-    panel.classList.toggle("hidden", !willShow);
-    if (willShow) loadHistoryPanel();
+    setPinned(!isPinned);
   });
-
-  closeButton.addEventListener("click", (event) => {
+  closeButton?.addEventListener("click", (event) => {
     event.stopPropagation();
-    panel.classList.add("hidden");
+    setPinned(false);
+  });
+  prevButton?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    if (currentExchangeIndex > 0) {
+      currentExchangeIndex -= 1;
+      renderExchange();
+    }
+  });
+  nextButton?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    if (currentExchangeIndex < exchanges.length - 1) {
+      currentExchangeIndex += 1;
+      renderExchange();
+    }
   });
 }
 
@@ -325,7 +398,7 @@ function init(): void {
   initRecordButton();
   initLiveButton();
   initSkipButton();
-  initHistoryToggle();
+  initPinButton();
 
   const bubbleEl = document.getElementById("bubble");
   bubbleEl?.addEventListener("mouseenter", () => {

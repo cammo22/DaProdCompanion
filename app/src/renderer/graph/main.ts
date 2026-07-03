@@ -59,8 +59,20 @@ interface D3Force {
   distance?(value: number): void;
 }
 
-const DEFAULT_REPULSION = 120;
-const DEFAULT_LINK_DISTANCE = 60;
+// Slider normalizzati 0-100 (piu' intuitivi e con passo fine, come richiesto:
+// la vecchia scala 20-400 / 10-200 era troppo ampia e a scatti). "Attrazione"
+// alta = nodi collegati piu' vicini (distanza del link piu' piccola);
+// "Repulsione" alta = nodi che si respingono di piu'.
+const DEFAULT_ATTRACTION = 50;
+const DEFAULT_REPULSION = 40;
+
+function attractionToLinkDistance(value: number): number {
+  return 120 - value; // value 0 -> 120 (lontani), value 100 -> 20 (vicini)
+}
+
+function repulsionToChargeStrength(value: number): number {
+  return -(value * 3); // value 0 -> 0, value 100 -> -300
+}
 
 declare class ForceGraph {
   constructor(element: HTMLElement);
@@ -96,20 +108,12 @@ const NODE_TYPE_COLORS: Record<string, string> = {
   Luogo: "#4affa0",
 };
 
-// Stato dei controlli (slider/checkbox): letto sia dagli accessor/canvas
-// reattivi (richiamati ad ogni frame) sia dai listener di input.
-//
-// "Connessioni minime" NON nasconde piu' i pallini (richiesto esplicitamente
-// dall'utente dopo che una versione precedente lo faceva per errore): nasconde
-// solo l'ETICHETTA di testo dei nodi sotto la soglia, cosi' il grafo resta
-// leggibile senza perdere nodi. Passare il mouse su un nodo ne rivela comunque
-// sempre il nome, indipendentemente dalla soglia. Nascondere davvero un
-// pallino e' invece cosa dei filtri "Filtri" qui sotto (tipo/isolati), che
-// sono un'intenzione esplicita e diversa da "nascondi il nome".
-let minConnectionsFilter = 0;
+// Stato dei controlli, letto dal canvas reattivo (ridisegnato ad ogni frame).
+// Un solo interruttore per TUTTI i nomi (non filtri per tipo, non soglie):
+// mostra/nascondi le etichette di tutti i nodi in blocco. Col mouse sopra un
+// nodo il nome si vede comunque, sempre.
+let showLabels = true;
 let hoveredNodeId: string | null = null;
-let hideOrphans = false;
-const hiddenTypes = new Set<string>();
 
 function computeDegrees(snapshot: GraphSnapshot): Map<number, number> {
   const degrees = new Map<number, number>();
@@ -197,7 +201,6 @@ function render(snapshot: GraphSnapshot): void {
       .height(container.clientHeight)
       .nodeId("id")
       .nodeLabel((node) => `${node.label} (${node.nodeType}, ${node.degree} collegamenti)`)
-      .nodeVisibility((node) => !hiddenTypes.has(node.nodeType) && !(hideOrphans && node.degree === 0))
       .linkColor(() => "rgba(255,255,255,0.25)")
       .onNodeClick((node) => showNodeDetail(node))
       .onNodeHover((node) => {
@@ -212,11 +215,9 @@ function render(snapshot: GraphSnapshot): void {
         ctx.fillStyle = NODE_TYPE_COLORS[node.nodeType] ?? "#aaaaaa";
         ctx.fill();
 
-        // Il pallino resta sempre visibile: solo l'etichetta si nasconde
-        // sotto la soglia "connessioni minime" (o si rivela comunque al
-        // passaggio del mouse), cosi' non si perdono mai nodi dal grafo.
-        const showLabel = node.degree >= minConnectionsFilter || node.id === hoveredNodeId;
-        if (showLabel) {
+        // Il pallino c'e' sempre: l'etichetta si vede se i nomi sono attivi
+        // (interruttore unico) oppure se il mouse e' su quel nodo.
+        if (showLabels || node.id === hoveredNodeId) {
           const fontSize = 12 / scale;
           ctx.font = `${fontSize}px "Segoe UI", sans-serif`;
           ctx.textAlign = "center";
@@ -233,12 +234,10 @@ function render(snapshot: GraphSnapshot): void {
         ctx.fill();
       });
 
-    // Applica subito i valori di default degli slider alle forze reali:
-    // altrimenti lo slider mostra "120"/"60" ma la simulazione userebbe i
-    // default interni di d3-force-graph finche' l'utente non lo tocca,
-    // disallineando cio' che si vede da cio' che si legge.
-    graph.d3Force("charge")?.strength(-DEFAULT_REPULSION);
-    graph.d3Force("link")?.distance?.(DEFAULT_LINK_DISTANCE);
+    // Applica subito i valori di default degli slider alle forze reali,
+    // cosi' cio' che si vede combacia con cio' che gli slider mostrano.
+    graph.d3Force("charge")?.strength(repulsionToChargeStrength(DEFAULT_REPULSION));
+    graph.d3Force("link")?.distance?.(attractionToLinkDistance(DEFAULT_ATTRACTION));
   }
 
   graph.graphData(toGraphData(snapshot));
@@ -256,102 +255,85 @@ async function loadAndRender(): Promise<void> {
   }
 }
 
+/** "Aggiorna": ricarica SOLO la vista del grafo dal DB. Non fa sognare (tasto
+ * separato apposta, vedi initDreamButton): serve a rivedere lo stato attuale
+ * senza innescare rielaborazioni. */
 function initRefreshButton(): void {
   const button = document.getElementById("refresh-now-button") as HTMLButtonElement | null;
   if (!button) return;
-  const defaultLabel = button.textContent ?? "Aggiorna adesso";
+  const defaultLabel = button.textContent ?? "Aggiorna";
 
   button.addEventListener("click", async () => {
     button.disabled = true;
-    button.textContent = "Aggiornamento...";
     try {
-      await graphAPI.triggerNow();
-      // Se ci sono state nuove entita', arriva anche l'evento graph-updated
-      // via WS: questa chiamata e' comunque utile per il caso "nessuna novita'",
-      // dove quell'evento non scatterebbe mai (vedi consolidation.py).
       await loadAndRender();
-    } catch (err) {
-      console.error("Aggiornamento manuale del grafo fallito:", err);
+      await refreshDreamTimer();
     } finally {
       button.disabled = false;
       button.textContent = defaultLabel;
     }
-    await refreshDreamTimer();
   });
 }
 
-function initTypeFilters(): void {
-  const container = document.getElementById("type-filter-list");
-  if (!container) return;
-  container.innerHTML = "";
+/** "Sogna adesso": forza subito un ciclo di sogno, che e' cio' che
+ * TRASFORMA quello di cui hai parlato in nuovi nodi/collegamenti. Mostra un
+ * riscontro chiaro: se non compaiono nuovi nodi e' perche' non c'era nulla di
+ * nuovo da rielaborare dall'ultimo sogno, non perche' l'aggiornamento non
+ * funziona (era la confusione segnalata). */
+function initDreamButton(): void {
+  const button = document.getElementById("dream-now-button") as HTMLButtonElement | null;
+  const feedback = document.getElementById("dream-feedback");
+  if (!button || !feedback) return;
+  const defaultLabel = button.textContent ?? "Sogna adesso";
 
-  for (const nodeType of Object.keys(NODE_TYPE_COLORS)) {
-    const label = document.createElement("label");
-    label.className = "checkbox-row";
-    const checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.checked = true;
-    checkbox.addEventListener("change", () => {
-      if (checkbox.checked) hiddenTypes.delete(nodeType);
-      else hiddenTypes.add(nodeType);
-      graph?.d3ReheatSimulation();
-    });
-    const swatch = document.createElement("span");
-    swatch.className = "type-filter-swatch";
-    swatch.style.background = NODE_TYPE_COLORS[nodeType];
-    label.appendChild(checkbox);
-    label.appendChild(swatch);
-    label.appendChild(document.createTextNode(nodeType));
-    container.appendChild(label);
-  }
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    button.textContent = "Sto sognando...";
+    feedback.classList.add("hidden");
+    try {
+      const result = await graphAPI.triggerNow();
+      await loadAndRender();
+      await refreshDreamTimer();
+      feedback.textContent =
+        result.consolidated_events > 0
+          ? `Ho rielaborato ${result.consolidated_events} cose: guarda i nuovi nodi.`
+          : "Niente di nuovo da rielaborare (serve aver parlato di qualcosa dall'ultimo sogno).";
+      feedback.classList.remove("hidden");
+    } catch (err) {
+      console.error("Sogno manuale fallito:", err);
+      feedback.textContent = "Il sogno non e' riuscito, riprova.";
+      feedback.classList.remove("hidden");
+    } finally {
+      button.disabled = false;
+      button.textContent = defaultLabel;
+    }
+  });
 }
 
-function initHideOrphansToggle(): void {
-  const checkbox = document.getElementById("hide-orphans") as HTMLInputElement | null;
+function initShowLabelsToggle(): void {
+  const checkbox = document.getElementById("show-labels") as HTMLInputElement | null;
   if (!checkbox) return;
+  showLabels = checkbox.checked;
   checkbox.addEventListener("change", () => {
-    hideOrphans = checkbox.checked;
+    showLabels = checkbox.checked;
+    // Il canvas si ridisegna da solo, ma se la simulazione si e' fermata
+    // (grafo stabile) serve un piccolo reheat per vedere subito il cambio.
     graph?.d3ReheatSimulation();
   });
 }
 
-function initMinConnectionsSlider(): void {
-  const slider = document.getElementById("min-connections") as HTMLInputElement | null;
-  const valueLabel = document.getElementById("min-connections-value");
-  if (!slider || !valueLabel) return;
-
-  slider.addEventListener("input", () => {
-    minConnectionsFilter = Number(slider.value);
-    valueLabel.textContent = slider.value;
-    // nodeVisibility e' un accessor riletto ad ogni frame, ma se la
-    // simulazione si e' gia' fermata (grafo stabile) non ridisegna da sola:
-    // un piccolo reheat forza il ricalcolo visibile subito.
-    graph?.d3ReheatSimulation();
-  });
-}
-
-function initRepulsionSlider(): void {
-  const slider = document.getElementById("repulsion") as HTMLInputElement | null;
+function initForceSlider(
+  sliderId: string,
+  valueId: string,
+  apply: (value: number) => void,
+): void {
+  const slider = document.getElementById(sliderId) as HTMLInputElement | null;
+  const valueLabel = document.getElementById(valueId);
   if (!slider) return;
-
   slider.addEventListener("input", () => {
-    const strength = -Number(slider.value);
-    graph?.d3Force("charge")?.strength(strength);
-    graph?.d3ReheatSimulation();
-  });
-}
-
-/** Slider separato per l'attrazione (distanza dei collegamenti), non solo
- * repulsione: prima si poteva solo respingere di piu' o di meno, senza modo
- * di far avvicinare le coppie di nodi collegati. Distanza piu' piccola =
- * nodi collegati tirati piu' vicini, per bilanciare la repulsione generale. */
-function initAttractionSlider(): void {
-  const slider = document.getElementById("attraction") as HTMLInputElement | null;
-  if (!slider) return;
-
-  slider.addEventListener("input", () => {
-    const distance = Number(slider.value);
-    graph?.d3Force("link")?.distance?.(distance);
+    const value = Number(slider.value);
+    if (valueLabel) valueLabel.textContent = slider.value;
+    apply(value);
     graph?.d3ReheatSimulation();
   });
 }
@@ -430,11 +412,10 @@ function init(): void {
   loadAndRender();
   graphAPI.onUpdated(() => loadAndRender());
   initRefreshButton();
-  initTypeFilters();
-  initHideOrphansToggle();
-  initMinConnectionsSlider();
-  initRepulsionSlider();
-  initAttractionSlider();
+  initDreamButton();
+  initShowLabelsToggle();
+  initForceSlider("attraction", "attraction-value", (v) => graph?.d3Force("link")?.distance?.(attractionToLinkDistance(v)));
+  initForceSlider("repulsion", "repulsion-value", (v) => graph?.d3Force("charge")?.strength(repulsionToChargeStrength(v)));
   initQuantumButton();
 
   refreshDreamTimer();

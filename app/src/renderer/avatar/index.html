@@ -12,12 +12,17 @@
     <div id="bubble-user-message" class="bubble-user-message hidden"></div>
     <div id="bubble-text" class="bubble-text"></div>
   </div>
-  <div id="history-panel" class="history-panel hidden">
-    <div class="history-panel-header">
-      <span>Cronologia</span>
-      <button id="history-close-button" class="history-close-button" type="button" title="Chiudi">✕</button>
+  <div id="convo-view" class="convo-view hidden">
+    <div class="convo-view-header">
+      <button id="convo-prev" class="convo-nav" type="button" title="Scambio precedente">◀</button>
+      <span id="convo-position" class="convo-position">—</span>
+      <button id="convo-next" class="convo-nav" type="button" title="Scambio successivo">▶</button>
+      <button id="convo-close" class="convo-close" type="button" title="Sblocca / chiudi">✕</button>
     </div>
-    <div id="history-list" class="history-list"></div>
+    <div id="convo-body" class="convo-body">
+      <div id="convo-question" class="convo-question"></div>
+      <div id="convo-answer" class="convo-answer"></div>
+    </div>
   </div>
   <div id="avatar" class="avatar" data-state="idle" title="Clicca per aprire la chat">
     <div class="avatar-ring"></div>
@@ -41,8 +46,8 @@
       ⏭️
     </button>
     <span class="button-bar-divider"></span>
-    <button id="history-toggle-button" class="toolbar-button" type="button" title="Mostra/nascondi la cronologia della chat">
-      🕘
+    <button id="pin-button" class="toolbar-button" type="button" title="Blocca e mostra sempre la conversazione (sfoglia gli scambi precedenti)">
+      📌
     </button>
   </div>
   <audio id="voice-audio" hidden></audio>

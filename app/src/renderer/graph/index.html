@@ -9,9 +9,15 @@
   <div id="graph-container"></div>
 
   <div id="controls-panel" class="controls-panel">
-    <button id="refresh-now-button" class="refresh-now-button" type="button">
-      Aggiorna adesso
-    </button>
+    <div class="button-row">
+      <button id="refresh-now-button" class="graph-button" type="button" title="Ricarica solo la vista del grafo (non fa sognare)">
+        Aggiorna
+      </button>
+      <button id="dream-now-button" class="graph-button" type="button" title="Forza subito un ciclo di sogno: rielabora quello di cui hai parlato in nuovi nodi/collegamenti">
+        Sogna adesso
+      </button>
+    </div>
+    <div id="dream-feedback" class="dream-feedback hidden"></div>
 
     <button
       id="quantum-button"
@@ -28,32 +34,22 @@
     <div id="quantum-status" class="quantum-status hidden"></div>
 
     <div class="controls-section">
-      <h3 class="controls-section-title">Filtri</h3>
-      <div id="type-filter-list" class="type-filter-list"></div>
       <label class="checkbox-row">
-        <input id="hide-orphans" type="checkbox" />
-        Nascondi nodi isolati (0 collegamenti)
+        <input id="show-labels" type="checkbox" checked />
+        Mostra i nomi dei nodi
       </label>
-    </div>
-
-    <div class="controls-section">
-      <h3 class="controls-section-title">Aspetto</h3>
-      <div class="control-row">
-        <label for="min-connections">Nascondi nomi sotto: <span id="min-connections-value">0</span> collegamenti</label>
-        <input id="min-connections" type="range" min="0" max="6" step="1" value="0" />
-      </div>
+      <p class="control-hint">Col mouse sopra un nodo il nome si vede comunque.</p>
     </div>
 
     <div class="controls-section">
       <h3 class="controls-section-title">Forze</h3>
       <div class="control-row">
-        <label for="repulsion">Repulsione</label>
-        <input id="repulsion" type="range" min="20" max="400" step="10" value="120" />
+        <label for="attraction">Attrazione: <span id="attraction-value">50</span></label>
+        <input id="attraction" type="range" min="0" max="100" step="1" value="50" />
       </div>
-
       <div class="control-row">
-        <label for="attraction">Attrazione (distanza collegamenti)</label>
-        <input id="attraction" type="range" min="10" max="200" step="5" value="60" />
+        <label for="repulsion">Repulsione: <span id="repulsion-value">40</span></label>
+        <input id="repulsion" type="range" min="0" max="100" step="1" value="40" />
       </div>
     </div>
 

@@ -111,45 +111,55 @@ html, body {
   color: #6a7bff;
 }
 
-.type-filter-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
 .checkbox-row {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: 13px;
   color: #d8d8e6;
   cursor: pointer;
 }
 
-.type-filter-swatch {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  display: inline-block;
+.control-hint {
+  margin: 0;
+  font-size: 11px;
+  color: #7a7a90;
+  line-height: 1.3;
 }
 
-.refresh-now-button {
+.button-row {
+  display: flex;
+  gap: 8px;
+}
+
+.graph-button {
+  flex: 1;
   background: rgba(74, 92, 255, 0.85);
   border: none;
   border-radius: 8px;
   color: #f0f0f5;
   font-size: 13px;
-  padding: 8px 14px;
+  padding: 8px 12px;
   cursor: pointer;
 }
 
-.refresh-now-button:hover {
+.graph-button:hover {
   background: rgba(94, 112, 255, 0.95);
 }
 
-.refresh-now-button:disabled {
+.graph-button:disabled {
   background: rgba(90, 90, 105, 0.6);
   cursor: default;
+}
+
+.dream-feedback {
+  font-size: 11px;
+  color: #8affb0;
+  line-height: 1.4;
+}
+
+.dream-feedback.hidden {
+  display: none;
 }
 
 .quantum-button {
