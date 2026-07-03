@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 from companion_shared.db import open_connection
 
-from brain_service.conversation.tools import _recall_graph_entity, run_chat_with_tools
+from brain_service.conversation.tools import _recall_graph_entity, execute_tool_call, run_chat_with_tools
 from brain_service.graph.writer import find_or_create_edge, find_or_create_node
 
 
@@ -54,6 +54,37 @@ class FakeOllama:
 
     async def embed(self, *, model, text):
         return [0.1] * 8
+
+
+class FailingOllama(FakeOllama):
+    async def embed(self, *, model, text):
+        raise RuntimeError("embedding non raggiungibile")
+
+
+def test_execute_tool_call_degrades_instead_of_raising_when_tool_fails(conn):
+    result = _run(execute_tool_call(
+        "save_memory", {"text": "ricordati questo"}, conn=conn, ollama=FailingOllama(), embedding_model="e"
+    ))
+    assert result.startswith("Errore:")
+
+
+def test_run_chat_with_tools_continues_after_a_failing_tool_call(conn):
+    ollama = FailingOllama(
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [{"function": {"name": "save_memory", "arguments": {"text": "ricordati questo"}}}],
+        },
+        {"role": "assistant", "content": "Fatto (o quasi)."},
+    )
+    result = _run(run_chat_with_tools(
+        ollama=ollama, model="m", messages=[{"role": "user", "content": "ricorda questo"}], num_ctx=2048,
+        conn=conn, embedding_model="e",
+    ))
+    assert result == "Fatto (o quasi)."
+    # Il secondo giro deve contenere l'errore del tool come risultato, non un'eccezione propagata.
+    tool_message = next(m for m in ollama.calls[1] if m.get("role") == "tool")
+    assert tool_message["content"].startswith("Errore:")
 
 
 def test_run_chat_with_tools_returns_content_directly_when_no_tool_calls():

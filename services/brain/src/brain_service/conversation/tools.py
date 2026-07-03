@@ -11,11 +11,14 @@ va aggiunto qui con la stessa cautela.
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 
 from .ollama_client import OllamaClient
 from ..graph.snapshot import get_graph_snapshot
 from ..memory import semantic
+
+logger = logging.getLogger("brain")
 
 _MAX_TOOL_ROUNDS = 3
 
@@ -103,11 +106,20 @@ def _recall_graph_entity(label: str, *, conn: sqlite3.Connection) -> str:
 async def execute_tool_call(
     name: str, arguments: dict, *, conn: sqlite3.Connection, ollama: OllamaClient, embedding_model: str
 ) -> str:
-    if name == "save_memory":
-        return await _save_memory(arguments.get("text", ""), conn=conn, ollama=ollama, embedding_model=embedding_model)
-    if name == "recall_graph_entity":
-        return _recall_graph_entity(arguments.get("label", ""), conn=conn)
-    return f"Errore: strumento sconosciuto '{name}'."
+    """Non lascia mai propagare un'eccezione: un tool che fallisce (es.
+    embedding irraggiungibile) degrada a un messaggio di errore restituito al
+    modello come risultato del tool, invece di far fallire l'intero turno di
+    chat — stessa filosofia di degradazione controllata usata per TTS e
+    recupero memoria semantica altrove in loop.py."""
+    try:
+        if name == "save_memory":
+            return await _save_memory(arguments.get("text", ""), conn=conn, ollama=ollama, embedding_model=embedding_model)
+        if name == "recall_graph_entity":
+            return _recall_graph_entity(arguments.get("label", ""), conn=conn)
+        return f"Errore: strumento sconosciuto '{name}'."
+    except Exception:
+        logger.exception("Esecuzione dello strumento '%s' fallita", name)
+        return f"Errore: lo strumento '{name}' non e' riuscito a completare l'operazione."
 
 
 async def run_chat_with_tools(
