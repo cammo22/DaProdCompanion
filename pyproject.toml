@@ -1,6 +1,6 @@
 [project]
 name = "daprodcompanion"
-version = "0.1.0"
+version = "0.0.1"
 description = "Companion AI desktop 100% locale (workspace root, nessun codice proprio)"
 requires-python = ">=3.12"
 dependencies = []
