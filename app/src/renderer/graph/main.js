@@ -12,16 +12,20 @@ const NODE_TYPE_COLORS = {
     Concetto: "#9b5cff",
     Luogo: "#4affa0",
 };
-// Stato dei controlli (slider): letto sia dagli accessor/canvas reattivi
-// (richiamati ad ogni frame) sia dai listener di input.
+// Stato dei controlli (slider/checkbox): letto sia dagli accessor/canvas
+// reattivi (richiamati ad ogni frame) sia dai listener di input.
 //
 // "Connessioni minime" NON nasconde piu' i pallini (richiesto esplicitamente
 // dall'utente dopo che una versione precedente lo faceva per errore): nasconde
 // solo l'ETICHETTA di testo dei nodi sotto la soglia, cosi' il grafo resta
 // leggibile senza perdere nodi. Passare il mouse su un nodo ne rivela comunque
-// sempre il nome, indipendentemente dalla soglia.
+// sempre il nome, indipendentemente dalla soglia. Nascondere davvero un
+// pallino e' invece cosa dei filtri "Filtri" qui sotto (tipo/isolati), che
+// sono un'intenzione esplicita e diversa da "nascondi il nome".
 let minConnectionsFilter = 0;
 let hoveredNodeId = null;
+let hideOrphans = false;
+const hiddenTypes = new Set();
 function computeDegrees(snapshot) {
     const degrees = new Map();
     for (const node of snapshot.nodes)
@@ -101,6 +105,7 @@ function render(snapshot) {
             .height(container.clientHeight)
             .nodeId("id")
             .nodeLabel((node) => `${node.label} (${node.nodeType}, ${node.degree} collegamenti)`)
+            .nodeVisibility((node) => !hiddenTypes.has(node.nodeType) && !(hideOrphans && node.degree === 0))
             .linkColor(() => "rgba(255,255,255,0.25)")
             .onNodeClick((node) => showNodeDetail(node))
             .onNodeHover((node) => {
@@ -178,6 +183,42 @@ function initRefreshButton() {
             button.textContent = defaultLabel;
         }
         await refreshDreamTimer();
+    });
+}
+function initTypeFilters() {
+    const container = document.getElementById("type-filter-list");
+    if (!container)
+        return;
+    container.innerHTML = "";
+    for (const nodeType of Object.keys(NODE_TYPE_COLORS)) {
+        const label = document.createElement("label");
+        label.className = "checkbox-row";
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.checked = true;
+        checkbox.addEventListener("change", () => {
+            if (checkbox.checked)
+                hiddenTypes.delete(nodeType);
+            else
+                hiddenTypes.add(nodeType);
+            graph?.d3ReheatSimulation();
+        });
+        const swatch = document.createElement("span");
+        swatch.className = "type-filter-swatch";
+        swatch.style.background = NODE_TYPE_COLORS[nodeType];
+        label.appendChild(checkbox);
+        label.appendChild(swatch);
+        label.appendChild(document.createTextNode(nodeType));
+        container.appendChild(label);
+    }
+}
+function initHideOrphansToggle() {
+    const checkbox = document.getElementById("hide-orphans");
+    if (!checkbox)
+        return;
+    checkbox.addEventListener("change", () => {
+        hideOrphans = checkbox.checked;
+        graph?.d3ReheatSimulation();
     });
 }
 function initMinConnectionsSlider() {
@@ -284,6 +325,8 @@ function init() {
     loadAndRender();
     graphAPI.onUpdated(() => loadAndRender());
     initRefreshButton();
+    initTypeFilters();
+    initHideOrphansToggle();
     initMinConnectionsSlider();
     initRepulsionSlider();
     initAttractionSlider();
