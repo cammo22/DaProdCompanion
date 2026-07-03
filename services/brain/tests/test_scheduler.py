@@ -100,6 +100,35 @@ def test_unsuppress_allows_the_next_trigger_to_run():
     asyncio.run(run())
 
 
+def test_overlapping_suppressors_both_must_release_before_triggers_resume():
+    # Scenario reale: la modalita' Quantum sospende il dreaming, poi l'utente
+    # preme "registra" (sospende di nuovo) e lo rilascia subito (unsuppress).
+    # Con un semplice bool, questo riattiverebbe il dreaming mentre Quantum e'
+    # ancora attivo — con il contatore deve restare sospeso.
+    calls: list[int] = []
+
+    async def run_cycle() -> int:
+        calls.append(1)
+        return 5
+
+    async def run() -> None:
+        scheduler = DreamingScheduler("0 4 * * *", run_cycle)
+        scheduler.suppress()  # Quantum si avvia
+        scheduler.suppress()  # l'utente preme "registra"
+        scheduler.unsuppress()  # l'utente rilascia "registra"
+
+        scheduler.check_size_trigger(41)
+        await asyncio.sleep(0.05)
+        assert calls == []  # Quantum sospende ancora: non deve partire
+
+        scheduler.unsuppress()  # Quantum finisce
+        scheduler.check_size_trigger(41)
+        await asyncio.sleep(0.05)
+        assert calls == [1]  # ora si', nessun sospensore attivo
+
+    asyncio.run(run())
+
+
 def test_status_starts_empty():
     async def run_cycle() -> int:
         return 0

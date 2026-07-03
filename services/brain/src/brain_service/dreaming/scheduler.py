@@ -58,7 +58,14 @@ class DreamingScheduler:
         self._task: asyncio.Task | None = None
         self._idle_task: asyncio.Task | None = None
         self._lock = asyncio.Lock()
-        self._suppressed = False
+        # Contatore, non un semplice bool: ascolto/registrazione (via
+        # /events/voice) e la modalita' Quantum possono sospendere il
+        # dreaming in modo indipendente e potenzialmente sovrapposto (es.
+        # l'utente preme "registra" mentre Quantum e' gia' attivo). Con un
+        # bool, la fine della registrazione riattiverebbe il dreaming anche
+        # se Quantum lo vuole ancora sospeso — con un contatore resta
+        # sospeso finche' TUTTI i sospensori non hanno chiamato unsuppress().
+        self._suppress_count = 0
         self._last_dream_at: datetime | None = None
         self._next_cron_run_at: datetime | None = None
 
@@ -94,17 +101,27 @@ class DreamingScheduler:
             return count
 
     def suppress(self) -> None:
-        """L'utente sta ascoltando/registrando attivamente: nessun trigger
-        automatico deve partire finche' non richiama unsuppress(), altrimenti
+        """L'utente sta ascoltando/registrando attivamente (o e' in corso la
+        modalita' Quantum): nessun trigger automatico deve partire finche'
+        ogni chiamante non richiama unsuppress() a sua volta, altrimenti
         rischia di mettersi in coda su Ollama insieme alla prossima risposta
-        conversazionale e ritardarla pesantemente."""
-        self._suppressed = True
+        conversazionale (o al ciclo Quantum in corso) e ritardarla
+        pesantemente. Incrementale: due sospensori indipendenti e sovrapposti
+        (es. si preme "registra" mentre Quantum e' gia' attivo) restano
+        entrambi in vigore finche' entrambi non hanno chiamato unsuppress()."""
+        self._suppress_count += 1
 
     def unsuppress(self) -> None:
-        """Fine ascolto/registrazione: i trigger automatici tornano attivi
-        dal prossimo scambio (non ne innesca uno subito qui, e' il normale
+        """Controparte di suppress(): NON riattiva subito i trigger se un
+        altro sospensore e' ancora attivo (contatore, non un semplice bool).
+        Quando arriva davvero a zero, i trigger automatici tornano attivi dal
+        prossimo scambio (non ne innesca uno subito qui, e' il normale
         notify_activity()/check_size_trigger() del prossimo /chat a farlo)."""
-        self._suppressed = False
+        self._suppress_count = max(0, self._suppress_count - 1)
+
+    @property
+    def _suppressed(self) -> bool:
+        return self._suppress_count > 0
 
     def notify_activity(self) -> None:
         """Da chiamare ad ogni scambio di chat riuscito (testo o voce):
