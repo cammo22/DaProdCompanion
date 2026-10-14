@@ -1,5 +1,7 @@
 # DaProdCompanion
 
+[![Discord](https://img.shields.io/badge/Discord-DaProd-5865F2?logo=discord&logoColor=white)](https://discord.gg/Njs52aacwq)
+
 Un companion AI desktop 100% locale, in italiano: un avatar che vive sul tuo desktop, ti ascolta,
 ti risponde, si ricorda di te nel tempo e — quando non gli parli — pensa comunque da solo a quello
 che ha imparato. Nessun dato lascia il PC: il cervello (Ollama), la voce (Kokoro) e l'orecchio
